@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Product Premium View</title>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f4f4f4;
+      padding: 20px;
+    }
+
+    .top {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .top img {
+      width: 200px;
+      height: 200px;
+      object-fit: cover;
+      border-radius: 10px;
+      border: 1px solid #ccc;
+    }
+
+    h1 {
+      font-size: 20px;
+      margin: 15px 0 10px;
+    }
+
+    .btn-primary, .btn-secondary {
+      padding: 12px 20px;
+      font-size: 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      display: inline-block;
+      margin-top: 15px;
+    }
+
+    .btn-primary {
+      background-color: #007bff;
+      color: white;
+    }
+
+    .btn-secondary {
+      background-color: #dc3545;
+      color: white;
+    }
+
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+<div class="top">
+  <img id="mainPhoto" src="" alt="Product Image" />
+  <h1 id="title">Loading...</h1>
+  <button id="premiumBtn" class="btn-primary">Click to Watch Reward Ads To Make Premium (10 taps)</button>
+  <button id="cancelBtn" class="btn-secondary hidden">Cancel Premium</button>
+</div>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyAZK9TwSJAh2zrp7LxkUHfQur0pBsrnCfk",
+    authDomain: "ooiy-in.firebaseapp.com",
+    projectId: "ooiy-in",
+    storageBucket: "ooiy-in.firebasestorage.app",
+    messagingSenderId: "782642713796",
+    appId: "1:782642713796:web:821e8bc94d116db26d6591",
+    measurementId: "G-QHMLZ4WH73"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
+
+  const params = new URLSearchParams(location.search);
+  const userId = params.get('user');
+  const productKey = params.get('key');
+
+  const mainPhoto = document.getElementById('mainPhoto');
+  const titleEl = document.getElementById('title');
+  const premiumBtn = document.getElementById('premiumBtn');
+  const cancelBtn = document.getElementById('cancelBtn');
+
+  let touchCount = 0;
+  const MAX_TAPS = 10;
+  const ONE_DAY = 86400000;
+
+  auth.onAuthStateChanged(async (user) => {
+    if (!user || !userId || !productKey) return location.href = "login.html";
+
+    const doc = await db.collection('details').doc(userId).get();
+    const product = doc.data()[productKey];
+    if (!product) return alert("Product not found");
+
+    mainPhoto.src = product.photos?.[0] || '';
+    titleEl.textContent = product.name || 'No Name';
+
+    const meta = product.premiumMeta || {};
+    const now = Date.now();
+
+    if (meta.premium && (now - meta.premiumTimestamp) < ONE_DAY) {
+      showCancel();
+    } else {
+      showPremium();
+    }
+
+    touchCount = meta.touchCount || 0;
+    updateBtnLabel();
+  });
+
+  premiumBtn.onclick = async () => {
+    premiumBtn.disabled = true;
+    premiumBtn.textContent = "Please wait...";
+
+    setTimeout(async () => {
+      touchCount++;
+      updateBtnLabel();
+      await saveTouchProgress();
+
+      if (touchCount >= MAX_TAPS) {
+        await markPremium(true);
+      }
+
+      location.reload(); // reload after saving
+    }, 2000);
+  };
+
+  cancelBtn.onclick = async () => {
+    await markPremium(false);
+    showPremium();
+  };
+
+  function updateBtnLabel() {
+    premiumBtn.textContent = `Make Premium (${touchCount}/${MAX_TAPS})`;
+  }
+
+  function showPremium() {
+    premiumBtn.classList.remove('hidden');
+    cancelBtn.classList.add('hidden');
+  }
+
+  function showCancel() {
+    premiumBtn.classList.add('hidden');
+    cancelBtn.classList.remove('hidden');
+  }
+
+  async function saveTouchProgress() {
+    await db.collection("details").doc(userId).update({
+      [`${productKey}.premiumMeta.touchCount`]: touchCount,
+      [`${productKey}.premiumMeta.lastTouchTime`]: Date.now()
+    });
+  }
+
+  async function markPremium(state) {
+    await db.collection("details").doc(userId).update({
+      [`${productKey}.premiumMeta`]: {
+        premium: state,
+        premiumTimestamp: state ? Date.now() : 0,
+        touchCount: 0,
+        lastTouchTime: 0
+      }
+    });
+    touchCount = 0;
+    updateBtnLabel();
+  }
+</script>
+
+</body>
+</html>

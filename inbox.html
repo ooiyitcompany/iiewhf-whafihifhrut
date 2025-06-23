@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Inbox - Ooiy Shop</title>
+
+  <!-- Firebase & Lucide -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f9f9f9;
+      margin: 0;
+      padding: 1rem;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .chat-list {
+      max-width: 700px;
+      margin: auto;
+    }
+
+    .chat-item {
+      display: flex;
+      align-items: center;
+      background: white;
+      border-radius: 10px;
+      padding: 10px;
+      margin-bottom: 10px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      cursor: pointer;
+    }
+
+    .chat-item img {
+      width: 60px;
+      height: 60px;
+      border-radius: 10px;
+      object-fit: cover;
+      margin-right: 15px;
+    }
+
+    .chat-info {
+      flex: 1;
+    }
+
+    .chat-info h3 {
+      margin: 0 0 5px;
+      font-size: 18px;
+    }
+
+    .chat-info p {
+      margin: 0;
+      color: #555;
+      font-size: 14px;
+    }
+
+    .no-chat {
+      text-align: center;
+      color: #777;
+      font-size: 16px;
+      margin-top: 50px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Your Inbox</h1>
+<div class="chat-list" id="chatList"></div>
+<div class="no-chat" id="noChat" style="display: none;">No chats found.</div>
+
+<script>
+  lucide.createIcons();
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAZK9TwSJAh2zrp7LxkUHfQur0pBsrnCfk",
+    authDomain: "ooiy-in.firebaseapp.com",
+    projectId: "ooiy-in",
+    storageBucket: "ooiy-in.firebasestorage.app",
+    messagingSenderId: "782642713796",
+    appId: "1:782642713796:web:821e8bc94d116db26d6591",
+    measurementId: "G-QHMLZ4WH73"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+  const auth = firebase.auth();
+
+  const chatList = document.getElementById('chatList');
+  const noChat = document.getElementById('noChat');
+
+  auth.onAuthStateChanged(async (user) => {
+    if (!user) {
+      alert("Please log in to view inbox.");
+      location.href = "login.html";
+      return;
+    }
+
+    const uid = user.uid;
+    const inboxRef = db.collection("inbox").doc(uid).collection("chats").orderBy("lastUpdated", "desc");
+
+    inboxRef.onSnapshot(async (snapshot) => {
+      chatList.innerHTML = "";
+      if (snapshot.empty) {
+        noChat.style.display = "block";
+        return;
+      }
+
+      noChat.style.display = "none";
+
+      for (const doc of snapshot.docs) {
+        const chat = doc.data();
+        const otherUser = chat.otherUser;
+        const productKey = chat.productKey;
+        const chatId = doc.id;
+
+        try {
+          const detailsDoc = await db.collection("details").doc(otherUser).get();
+          const productData = detailsDoc.exists ? detailsDoc.data()[productKey] : null;
+
+          const productName = productData?.name || "Unknown";
+          const photo = productData?.photos?.[0] || "https://via.placeholder.com/60?text=No+Image";
+
+          const chatItem = document.createElement("div");
+          chatItem.className = "chat-item";
+          chatItem.innerHTML = `
+            <img src="${photo}" alt="Product" />
+            <div class="chat-info">
+              <h3>${productName}</h3>
+              <p>${chat.lastMessage || "Say hello!"}</p>
+            </div>
+          `;
+
+          chatItem.onclick = () => {
+            location.href = `msg.html?user=${otherUser}&key=${productKey}`;
+          };
+
+          chatList.appendChild(chatItem);
+        } catch (error) {
+          console.error("Failed to load product:", error);
+        }
+      }
+    });
+  });
+</script>
+
+</body>
+</html>

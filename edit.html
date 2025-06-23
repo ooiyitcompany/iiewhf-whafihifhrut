@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Edit Product</title>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+
+  <!-- SortableJS -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f4f6f8;
+      padding: 1rem;
+    }
+    form {
+      max-width: 600px;
+      margin: auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+    }
+    label {
+      display: block;
+      margin-top: 1rem;
+      font-weight: bold;
+    }
+    input, textarea, select {
+      width: 100%;
+      padding: 10px;
+      margin-top: 5px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+    .photo-preview {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .photo-box {
+      position: relative;
+    }
+    .photo-box img {
+      width: 80px;
+      height: 80px;
+      object-fit: cover;
+      border-radius: 6px;
+    }
+    .photo-box button {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      background: red;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+    }
+    .submit-btn {
+      margin-top: 2rem;
+      background: #007bff;
+      color: white;
+      padding: 12px;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+
+<h2>Edit Product</h2>
+
+<form id="editForm">
+  <label>Product Name</label>
+  <input type="text" name="productName" required />
+
+  <label>Description</label>
+  <textarea name="description" rows="4" required></textarea>
+
+  <label>Price (₹)</label>
+  <input type="number" name="price" min="1" required />
+
+  <label>Category</label>
+  <input type="text" name="category" required />
+
+  <label>Type</label>
+  <input type="text" name="type" required />
+
+  <label>Location</label>
+  <input type="text" name="location" required />
+
+  <label>Product Photos (add more if needed)</label>
+  <input type="file" id="photosInput" multiple accept="image/*" />
+  <div class="photo-preview" id="photoPreview"></div>
+
+  <button type="submit" class="submit-btn">Save Changes</button>
+</form>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyAZK9TwSJAh2zrp7LxkUHfQur0pBsrnCfk",
+    authDomain: "ooiy-in.firebaseapp.com",
+    projectId: "ooiy-in",
+    storageBucket: "ooiy-in.firebasestorage.app",
+    messagingSenderId: "782642713796",
+    appId: "1:782642713796:web:821e8bc94d116db26d6591",
+    measurementId: "G-QHMLZ4WH73"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
+  const storage = firebase.storage();
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const productKey = urlParams.get('key');
+
+  const form = document.getElementById('editForm');
+  const photoPreview = document.getElementById('photoPreview');
+  const photosInput = document.getElementById('photosInput');
+  let existingPhotos = [];
+  let newFiles = [];
+
+  auth.onAuthStateChanged(async user => {
+    if (!user || !productKey) return window.location.href = 'login.html';
+    const docRef = db.collection("details").doc(user.uid);
+    const doc = await docRef.get();
+
+    if (!doc.exists) return alert("Product not found");
+
+    const product = doc.data()[productKey];
+    if (!product) return alert("Product not found");
+
+    // Fill form
+    form.productName.value = product.name || '';
+    form.description.value = product.description || '';
+    form.price.value = product.price || '';
+    form.category.value = product.category || '';
+    form.type.value = product.type || '';
+    form.location.value = product.location || '';
+    existingPhotos = product.photos || [];
+
+    renderPhotoPreview();
+  });
+
+  function renderPhotoPreview() {
+    photoPreview.innerHTML = '';
+    existingPhotos.forEach((url, index) => {
+      const box = document.createElement('div');
+      box.className = 'photo-box';
+      box.setAttribute('data-index', index);
+      box.innerHTML = `
+        <img src="${url}" />
+        <button onclick="removeExistingPhoto(${index})">&times;</button>`;
+      photoPreview.appendChild(box);
+    });
+
+    newFiles.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const box = document.createElement('div');
+        box.className = 'photo-box';
+        box.setAttribute('data-name', file.name);
+        box.innerHTML = `<img src="${e.target.result}" />
+                         <button onclick="removeNewFile('${file.name}')">&times;</button>`;
+        photoPreview.appendChild(box);
+      }
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function removeExistingPhoto(index) {
+    existingPhotos.splice(index, 1);
+    renderPhotoPreview();
+  }
+
+  function removeNewFile(name) {
+    newFiles = newFiles.filter(f => f.name !== name);
+    renderPhotoPreview();
+  }
+
+  photosInput.addEventListener('change', e => {
+    const files = Array.from(e.target.files);
+    if ((existingPhotos.length + newFiles.length + files.length) > 10) {
+      alert("Maximum 10 photos allowed.");
+      return;
+    }
+    newFiles.push(...files);
+    renderPhotoPreview();
+    photosInput.value = "";
+  });
+
+  new Sortable(photoPreview, {
+    animation: 150,
+    onEnd: () => {
+      const orderedChildren = [...photoPreview.children];
+      const newOrder = [];
+      orderedChildren.forEach(child => {
+        const index = child.getAttribute('data-index');
+        const name = child.getAttribute('data-name');
+        if (index !== null) {
+          newOrder.push(existingPhotos[parseInt(index)]);
+        } else if (name) {
+          const file = newFiles.find(f => f.name === name);
+          if (file) newOrder.push(file);
+        }
+      });
+      existingPhotos = newOrder.filter(item => typeof item === 'string');
+      newFiles = newOrder.filter(item => typeof item !== 'string');
+      renderPhotoPreview();
+    }
+  });
+
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const user = auth.currentUser;
+    if (!user || !productKey) return;
+
+    const name = form.productName.value;
+    const description = form.description.value;
+    const price = parseFloat(form.price.value);
+    const category = form.category.value;
+    const type = form.type.value;
+    const location = form.location.value;
+
+    const uploadedPhotoURLs = [...existingPhotos];
+
+    for (const file of newFiles) {
+      const ref = storage.ref(`products/${user.uid}/${Date.now()}_${file.name}`);
+      await ref.put(file);
+      const url = await ref.getDownloadURL();
+      uploadedPhotoURLs.push(url);
+    }
+
+    const updatedData = {
+      name, description, price, category, type, location,
+      photos: uploadedPhotoURLs,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+
+    await db.collection("details").doc(user.uid).update({
+      [productKey]: updatedData
+    });
+
+    alert("Product updated!");
+    window.location.href = "myprod.html";
+  });
+</script>
+
+</body>
+</html>

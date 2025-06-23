@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chat - Ooiy Shop</title>
+
+  <!-- Firebase & Lucide -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f9f9f9;
+      margin: 0;
+      padding: 1rem;
+      display: flex;
+      justify-content: center;
+    }
+    .container {
+      width: 100%;
+      max-width: 600px;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+      height: 90vh;
+      overflow: hidden;
+    }
+    header {
+      padding: 1rem;
+      border-bottom: 1px solid #ddd;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    header img {
+      width: 50px;
+      height: 50px;
+      object-fit: cover;
+      border-radius: 8px;
+    }
+    header h2 {
+      margin: 0;
+      font-size: 1.25rem;
+      flex: 1;
+    }
+    #messages {
+      flex: 1;
+      padding: 1rem;
+      overflow-y: auto;
+      background: #f5f5f5;
+    }
+    .message {
+      max-width: 75%;
+      margin-bottom: 10px;
+      padding: 10px 15px;
+      border-radius: 15px;
+      word-wrap: break-word;
+      white-space: pre-wrap;
+    }
+    .message.buyer {
+      background: #28a745;
+      color: white;
+      margin-left: auto;
+      border-bottom-right-radius: 0;
+    }
+    .message.seller {
+      background: #ddd;
+      color: #333;
+      margin-right: auto;
+      border-bottom-left-radius: 0;
+    }
+    form {
+      display: flex;
+      border-top: 1px solid #ddd;
+      padding: 0.5rem;
+      background: white;
+    }
+    textarea {
+      flex: 1;
+      resize: none;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 16px;
+      height: 50px;
+      font-family: inherit;
+    }
+    button {
+      margin-left: 10px;
+      background: #28a745;
+      border: none;
+      padding: 0 20px;
+      color: white;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <img id="productPhoto" src="https://via.placeholder.com/50" alt="Product" />
+    <h2 id="productName">Loading...</h2>
+  </header>
+
+  <div id="messages"></div>
+
+  <form id="messageForm">
+    <textarea id="messageInput" placeholder="Write your message..." required></textarea>
+    <button type="submit">Send</button>
+  </form>
+</div>
+
+<script>
+  lucide.createIcons();
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAZK9TwSJAh2zrp7LxkUHfQur0pBsrnCfk",
+    authDomain: "ooiy-in.firebaseapp.com",
+    projectId: "ooiy-in",
+    storageBucket: "ooiy-in.firebasestorage.app",
+    messagingSenderId: "782642713796",
+    appId: "1:782642713796:web:821e8bc94d116db26d6591",
+    measurementId: "G-QHMLZ4WH73"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+  const auth = firebase.auth();
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const sellerId = urlParams.get('user');
+  const productKey = urlParams.get('key');
+
+  const productPhoto = document.getElementById('productPhoto');
+  const productName = document.getElementById('productName');
+  const messagesDiv = document.getElementById('messages');
+  const messageForm = document.getElementById('messageForm');
+  const messageInput = document.getElementById('messageInput');
+
+  let currentUserId = null;
+  let currentProduct = null;
+
+  function generateChatId(uid1, uid2, productKey) {
+    const sorted = [uid1, uid2].sort();
+    return sorted.join('_') + '_' + productKey;
+  }
+
+  async function loadProduct() {
+    if (!sellerId || !productKey) {
+      productName.textContent = "Invalid product info.";
+      return;
+    }
+
+    const doc = await db.collection('details').doc(sellerId).get();
+    if (!doc.exists) {
+      productName.textContent = "Product not found.";
+      return;
+    }
+
+    const data = doc.data()[productKey];
+    if (!data) {
+      productName.textContent = "Product data missing.";
+      return;
+    }
+
+    currentProduct = data;
+    productPhoto.src = data.photos?.[0] || 'https://via.placeholder.com/50?text=No+Image';
+    productName.textContent = data.name || 'No Name';
+  }
+
+  function renderMessage(msg, currentUid) {
+    const div = document.createElement('div');
+    div.classList.add('message');
+    div.classList.add(msg.fromUser === currentUid ? 'buyer' : 'seller');
+    div.textContent = msg.message;
+    return div;
+  }
+
+  function scrollMessagesToBottom() {
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+  }
+
+  auth.onAuthStateChanged(async (user) => {
+    if (!user) {
+      alert("Please log in to chat.");
+      window.location.href = "login.html";
+      return;
+    }
+
+    currentUserId = user.uid;
+    await loadProduct();
+
+    if (!sellerId || !productKey || !currentUserId) return;
+    if (sellerId === currentUserId) {
+      alert("You cannot chat with yourself.");
+      return;
+    }
+
+    const chatId = generateChatId(currentUserId, sellerId, productKey);
+
+    db.collection('msg').doc(chatId).collection('messages')
+      .orderBy('timestamp')
+      .onSnapshot(snapshot => {
+        messagesDiv.innerHTML = '';
+        snapshot.forEach(doc => {
+          const msg = doc.data();
+          messagesDiv.appendChild(renderMessage(msg, currentUserId));
+        });
+        scrollMessagesToBottom();
+      });
+
+    messageForm.onsubmit = async (e) => {
+      e.preventDefault();
+      const text = messageInput.value.trim();
+      if (!text) return;
+
+      const messageData = {
+        fromUser: currentUserId,
+        toUser: sellerId,
+        productKey: productKey,
+        message: text,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      };
+
+      try {
+        // Save message
+        await db.collection('msg').doc(chatId).collection('messages').add(messageData);
+
+        // Sender inbox
+        await db.collection('inbox').doc(currentUserId).collection('chats').doc(chatId).set({
+          otherUser: sellerId,
+          productKey: productKey,
+          lastMessage: text,
+          lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Receiver inbox
+        await db.collection('inbox').doc(sellerId).collection('chats').doc(chatId).set({
+          otherUser: currentUserId,
+          productKey: productKey,
+          lastMessage: text,
+          lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        messageInput.value = '';
+      } catch (error) {
+        alert("Failed to send message: " + error.message);
+      }
+    };
+  });
+</script>
+
+</body>
+</html>

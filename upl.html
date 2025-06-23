@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Upload Product</title>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f4f6f8;
+      padding: 1rem;
+      margin-bottom: 80px;
+    }
+    form {
+      max-width: 600px;
+      margin: auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    label {
+      display: block;
+      margin-top: 1rem;
+      font-weight: bold;
+    }
+    input, textarea, select {
+      width: 100%;
+      padding: 10px;
+      margin-top: 5px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 16px;
+    }
+    .photo-preview {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .photo-box img {
+      width: 80px;
+      height: 80px;
+      object-fit: cover;
+      border-radius: 8px;
+    }
+    .submit-btn {
+      margin-top: 2rem;
+      background: #28a745;
+      color: white;
+      padding: 12px;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+
+<h2>Upload New Product</h2>
+
+<form id="uploadForm">
+  <label>Product Name</label>
+  <input type="text" name="name" required />
+
+  <label>Description</label>
+  <textarea name="description" rows="4" required></textarea>
+
+  <label>Price (₹)</label>
+  <input type="number" name="price" min="1" required />
+
+  <label>Category</label>
+  <select name="category" required>
+    <option value="">Select</option>
+    <option value="Mobile">Mobile</option>
+    <option value="Laptop">Laptop</option>
+    <option value="Furniture">Furniture</option>
+    <option value="Land">Land</option>
+    <option value="Vehicle">Vehicle</option>
+  </select>
+
+  <label>Type (e.g., New, Used)</label>
+  <input type="text" name="type" required />
+
+  <label>Location</label>
+  <input type="text" name="location" required />
+
+  <label>Photos</label>
+  <input type="file" id="photoInput" multiple accept="image/*" required />
+  <div class="photo-preview" id="photoPreview"></div>
+
+  <button type="submit" class="submit-btn">Upload</button>
+</form>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyAZK9TwSJAh2zrp7LxkUHfQur0pBsrnCfk",
+    authDomain: "ooiy-in.firebaseapp.com",
+    projectId: "ooiy-in",
+    storageBucket: "ooiy-in.firebasestorage.app",
+    messagingSenderId: "782642713796",
+    appId: "1:782642713796:web:821e8bc94d116db26d6591",
+    measurementId: "G-QHMLZ4WH73"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
+  const storage = firebase.storage();
+
+  const photoInput = document.getElementById('photoInput');
+  const photoPreview = document.getElementById('photoPreview');
+  let selectedPhotos = [];
+
+  photoInput.addEventListener('change', (e) => {
+    selectedPhotos = Array.from(e.target.files);
+    photoPreview.innerHTML = '';
+    selectedPhotos.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = document.createElement('img');
+        img.src = e.target.result;
+        photoPreview.appendChild(img);
+      };
+      reader.readAsDataURL(file);
+    });
+  });
+
+  document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const user = auth.currentUser;
+    if (!user) return alert("Please login first");
+
+    const form = e.target;
+    const name = form.name.value;
+    const description = form.description.value;
+    const price = parseFloat(form.price.value);
+    const category = form.category.value;
+    const type = form.type.value;
+    const location = form.location.value;
+
+    const photoURLs = [];
+    for (let file of selectedPhotos) {
+      const ref = storage.ref(`products/${user.uid}/${Date.now()}_${file.name}`);
+      await ref.put(file);
+      const url = await ref.getDownloadURL();
+      photoURLs.push(url);
+    }
+
+    await db.collection("products").add({
+      userId: user.uid,
+      name,
+      description,
+      price,
+      category,
+      type,
+      location,
+      photos: photoURLs,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    alert("Product uploaded!");
+    form.reset();
+    photoPreview.innerHTML = '';
+    selectedPhotos = [];
+  });
+</script>
+</body>
+</html>

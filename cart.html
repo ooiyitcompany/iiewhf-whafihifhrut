@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Your Cart - Ooiy</title>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f4f4f4;
+      margin: 0;
+      padding: 2rem;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 2rem;
+      color: #333;
+    }
+    .cart-container {
+      max-width: 900px;
+      margin: auto;
+    }
+    .cart-item {
+      display: flex;
+      background: #fff;
+      margin-bottom: 1rem;
+      padding: 1rem;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+      align-items: center;
+      gap: 1rem;
+      cursor: pointer;
+      position: relative;
+    }
+    .cart-item img {
+      width: 80px;
+      height: 80px;
+      object-fit: cover;
+      border-radius: 8px;
+      flex-shrink: 0;
+    }
+    .cart-info {
+      flex: 1;
+    }
+    .cart-info h2 {
+      margin: 0;
+      font-size: 18px;
+      color: #222;
+    }
+    .cart-info p {
+      margin: 0.25rem 0 0;
+      color: #777;
+      font-size: 14px;
+    }
+    .cart-price {
+      font-size: 18px;
+      color: #28a745;
+      font-weight: bold;
+    }
+    .remove-btn {
+      background: #dc3545;
+      color: white;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      position: absolute;
+      top: 50%;
+      right: 1rem;
+      transform: translateY(-50%);
+    }
+    .remove-btn:hover {
+      background: #c82333;
+    }
+    .empty {
+      text-align: center;
+      color: #777;
+      font-size: 18px;
+      margin-top: 3rem;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="cart-container">
+    <h1>Your Cart</h1>
+    <div id="cartItems"></div>
+    <div id="emptyMessage" class="empty" style="display:none;">Your cart is empty.</div>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyAZK9TwSJAh2zrp7LxkUHfQur0pBsrnCfk",
+    authDomain: "ooiy-in.firebaseapp.com",
+    projectId: "ooiy-in",
+    storageBucket: "ooiy-in.firebasestorage.app",
+    messagingSenderId: "782642713796",
+    appId: "1:782642713796:web:821e8bc94d116db26d6591",
+    measurementId: "G-QHMLZ4WH73"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    const cartContainer = document.getElementById('cartItems');
+    const emptyMessage = document.getElementById('emptyMessage');
+
+    auth.onAuthStateChanged(async (user) => {
+      if (!user) {
+        window.location.href = 'login.html';
+        return;
+      }
+
+      const userRef = db.collection('details').doc(user.uid);
+      const doc = await userRef.get();
+      if (!doc.exists) {
+        emptyMessage.style.display = 'block';
+        return;
+      }
+
+      const data = doc.data();
+      const cartItems = Object.entries(data).filter(([key]) => key.startsWith('cart'));
+
+      if (cartItems.length === 0) {
+        emptyMessage.style.display = 'block';
+        return;
+      }
+
+      cartItems.forEach(([key, item]) => {
+        const div = document.createElement('div');
+        div.className = 'cart-item';
+        div.onclick = (e) => {
+          // If remove button is clicked, don't navigate
+          if (e.target.classList.contains('remove-btn')) return;
+          window.location.href = `view.html?user=${item.user}&key=${item.key}`;
+        };
+
+        div.innerHTML = `
+          <img src="${item.photo || 'https://via.placeholder.com/80'}" alt="Product" />
+          <div class="cart-info">
+            <h2>${item.name || 'Unnamed'}</h2>
+            <p>From: ${item.user}</p>
+          </div>
+          <div class="cart-price">₹${item.price || 0}</div>
+          <button class="remove-btn">Remove</button>
+        `;
+
+        const btn = div.querySelector('.remove-btn');
+        btn.addEventListener('click', async () => {
+          const confirmDel = confirm('Remove this item from your cart?');
+          if (!confirmDel) return;
+
+          await userRef.update({ [key]: firebase.firestore.FieldValue.delete() });
+          alert('Item removed.');
+          div.remove();
+
+          if (cartContainer.children.length === 0) {
+            emptyMessage.style.display = 'block';
+          }
+        });
+
+        cartContainer.appendChild(div);
+      });
+    });
+  </script>
+</body>
+</html>

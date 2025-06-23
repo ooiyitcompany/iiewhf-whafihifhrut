@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Postbox - Your Chats</title>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <style>
+    body { font-family:'Segoe UI',sans-serif; background:#f9f9f9; margin:0; padding:1rem; }
+    .container { max-width:700px; margin:auto; background:white; padding:1rem; border-radius:10px; box-shadow:0 2px 6px rgba(0,0,0,0.1); }
+    .chat-thread { border-bottom:1px solid #eee; padding:10px 0; cursor:pointer; }
+    .chat-thread:hover { background:#f0f0f0; }
+    .user-id { font-weight:bold; }
+    .product-name { color:#555; }
+    .latest-message { color:#888; font-size:14px; margin-top:4px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Your Message Threads</h2>
+    <div id="chatList">Loading...</div>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyAZK9TwSJAh2zrp7LxkUHfQur0pBsrnCfk",
+    authDomain: "ooiy-in.firebaseapp.com",
+    projectId: "ooiy-in",
+    storageBucket: "ooiy-in.firebasestorage.app",
+    messagingSenderId: "782642713796",
+    appId: "1:782642713796:web:821e8bc94d116db26d6591",
+    measurementId: "G-QHMLZ4WH73"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const auth = firebase.auth();
+
+    const chatList = document.getElementById("chatList");
+
+    auth.onAuthStateChanged(user => {
+      if (!user) {
+        alert("Please log in.");
+        window.location.href = "login.html";
+        return;
+      }
+      const currentUser = user.uid;
+      chatList.textContent = "Loading threads...";
+
+      db.collectionGroup("messages")
+        .orderBy("timestamp", "desc")
+        .onSnapshot(snapshot => {
+          const threads = {};
+          snapshot.forEach(doc => {
+            const data = doc.data();
+            const chatId = doc.ref.parent.parent.id;
+            if (chatId.includes(currentUser) && !threads[chatId]) {
+              const otherUser = data.fromUser === currentUser ? data.toUser : data.fromUser;
+              threads[chatId] = {
+                chatId,
+                otherUser,
+                latestText: data.message || "(No Message)",
+                productName: data.productName || "Product",
+                productKey: data.productKey || "",
+                timestamp: data.timestamp
+              };
+            }
+          });
+
+          const sorted = Object.values(threads)
+            .sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis());
+
+          chatList.innerHTML = sorted.length
+            ? sorted.map(chat => `
+                <div class="chat-thread" onclick="window.location='msg.html?user=${chat.otherUser}&key=${chat.productKey}'">
+                  <div class="user-id">Chat with: ${chat.otherUser}</div>
+                  <div class="product-name">Product: ${chat.productName}</div>
+                  <div class="latest-message">${chat.latestText}</div>
+                </div>`
+              ).join("")
+            : "No message history found.";
+        }, err => {
+          console.error("Snapshot error:", err);
+          chatList.textContent = "Error loading messages.";
+        });
+    });
+  </script>
+</body>
+</html>

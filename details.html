@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Complete Profile - Ooiy</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f2f2f2;
+      padding: 30px;
+    }
+
+    .container {
+      max-width: 400px;
+      margin: auto;
+      background: #fff;
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+
+    h2 {
+      text-align: center;
+      color: #333;
+      margin-bottom: 20px;
+    }
+
+    input[type="text"], input[type="file"] {
+      width: 100%;
+      padding: 12px;
+      margin: 10px 0;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+    }
+
+    #username-status {
+      font-size: 14px;
+      margin-top: -8px;
+      margin-bottom: 10px;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      background-color: #28a745;
+      color: white;
+      border: none;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #218838;
+    }
+
+    .error {
+      color: red;
+      font-size: 14px;
+      margin-top: 10px;
+    }
+
+    .success {
+      color: green;
+      font-size: 14px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Complete Your Profile</h2>
+    <input type="text" id="name" placeholder="Your Full Name (max 35 chars)" maxlength="35" required />
+    
+    <input type="text" id="username" placeholder="Choose a Username (max 30 chars)" maxlength="30" required />
+    <div id="username-status"></div>
+    
+    <input type="file" id="photo" accept="image/*" required />
+    
+    <button id="save-btn">Save Profile</button>
+    
+    <div class="error" id="error-message"></div>
+    <div class="success" id="success-message"></div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, getDocs, collection, query, where } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+    import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-storage.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAZK9TwSJAh2zrp7LxkUHfQur0pBsrnCfk",
+    authDomain: "ooiy-in.firebaseapp.com",
+    projectId: "ooiy-in",
+    storageBucket: "ooiy-in.firebasestorage.app",
+    messagingSenderId: "782642713796",
+    appId: "1:782642713796:web:821e8bc94d116db26d6591",
+    measurementId: "G-QHMLZ4WH73"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const storage = getStorage(app);
+
+    const nameInput = document.getElementById('name');
+    const usernameInput = document.getElementById('username');
+    const photoInput = document.getElementById('photo');
+    const saveBtn = document.getElementById('save-btn');
+    const errorMessage = document.getElementById('error-message');
+    const successMessage = document.getElementById('success-message');
+    const usernameStatus = document.getElementById('username-status');
+
+    let currentUser = null;
+
+    // Username check
+    usernameInput.addEventListener('input', async () => {
+      const value = usernameInput.value.trim().toLowerCase();
+      usernameStatus.textContent = '';
+      if (value.length < 3) return;
+
+      const q = query(collection(db, "details"), where("username", "==", value));
+      const snapshot = await getDocs(q);
+
+      if (!snapshot.empty) {
+        usernameStatus.textContent = "❌ Username not available";
+        usernameStatus.style.color = "red";
+      } else {
+        usernameStatus.textContent = "✅ Username available";
+        usernameStatus.style.color = "green";
+      }
+    });
+
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        currentUser = user;
+      } else {
+        window.location.href = "login.html";
+      }
+    });
+
+    saveBtn.addEventListener('click', async () => {
+      const name = nameInput.value.trim();
+      const username = usernameInput.value.trim().toLowerCase();
+      const file = photoInput.files[0];
+
+      errorMessage.textContent = '';
+      successMessage.textContent = '';
+
+      if (!name || !username || !file) {
+        errorMessage.textContent = "All fields are required.";
+        return;
+      }
+
+      if (username.length < 3) {
+        errorMessage.textContent = "Username must be at least 3 characters.";
+        return;
+      }
+
+      // Check if username taken
+      const checkQuery = query(collection(db, "details"), where("username", "==", username));
+      const checkSnap = await getDocs(checkQuery);
+      if (!checkSnap.empty) {
+        errorMessage.textContent = "Username is already taken.";
+        return;
+      }
+
+      // Upload photo
+      const storageRef = ref(storage, `profile_photos/${currentUser.uid}`);
+      await uploadBytes(storageRef, file);
+      const photoURL = await getDownloadURL(storageRef);
+
+      // Save profile (no location)
+      const userDetails = {
+        name,
+        username,
+        photo: photoURL
+      };
+
+      await setDoc(doc(db, "details", currentUser.uid), userDetails);
+      successMessage.textContent = "Details saved successfully!";
+      setTimeout(() => window.location.href = "profile.html", 1500);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Add - Ooiy</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f4f6f9;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding-bottom: 60px;
+    }
+
+    .container {
+      padding: 30px 20px;
+    }
+
+    .option {
+      background-color: #ffffff;
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      text-align: center;
+      text-decoration: none;
+      color: #333;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+      transition: background 0.2s;
+    }
+
+    .option:hover {
+      background-color: #f0f8ff;
+    }
+
+    .option i {
+      font-size: 24px;
+      color: #007bff;
+      margin-right: 12px;
+    }
+
+    .option span {
+      font-size: 18px;
+      flex: 1;
+    }
+
+    .bottom-nav {
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      height: 60px;
+      background: #ffffff;
+      border-top: 1px solid #ccc;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+    }
+
+    .bottom-nav a {
+      text-decoration: none;
+      color: #444;
+      font-size: 12px;
+      text-align: center;
+      flex-grow: 1;
+    }
+
+    .bottom-nav i {
+      font-size: 20px;
+      display: block;
+      margin-bottom: 3px;
+    }
+
+    .bottom-nav a.active {
+      color: #007bff;
+    }
+
+    .bottom-nav a:hover {
+      color: #0056b3;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <a href="myprod.html" class="option">
+      <i class="fas fa-box"></i>
+      <span>My Products</span>
+      <i class="fas fa-chevron-right"></i>
+    </a>
+
+    <a href="upload.html" class="option">
+      <i class="fas fa-upload"></i>
+      <span>Upload New Product</span>
+      <i class="fas fa-chevron-right"></i>
+    </a>
+  </div>
+
+  <div class="bottom-nav">
+    <a href="index.html">
+      <i class="fas fa-home"></i>
+      Home
+    </a>
+    <a href="cart.html">
+      <i class="fas fa-shopping-cart"></i>
+      Cart
+    </a>
+    <a href="add.html" class="active">
+      <i class="fas fa-circle-plus"></i>
+      Add
+    </a>
+    <a href="profile.html">
+      <i class="fas fa-user"></i>
+      Profile
+    </a>
+  </div>
+
+</body>
+</html>

@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Chat - Ooiy</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      background: #f1f1f1;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      padding: 10px;
+      background: white;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .header img {
+      width: 50px;
+      height: 50px;
+      border-radius: 6px;
+      object-fit: cover;
+      margin-right: 10px;
+    }
+
+    .header .info {
+      flex: 1;
+    }
+
+    .header .info h3 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .chat-box {
+      flex: 1;
+      padding: 10px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .msg {
+      max-width: 70%;
+      margin-bottom: 8px;
+      padding: 10px 14px;
+      border-radius: 12px;
+      line-height: 1.4;
+      font-size: 14px;
+    }
+
+    .msg.sent {
+      align-self: flex-end;
+      background: #dcf8c6;
+    }
+
+    .msg.received {
+      align-self: flex-start;
+      background: #fff;
+      border: 1px solid #ddd;
+    }
+
+    .input-area {
+      display: flex;
+      padding: 10px;
+      background: white;
+      border-top: 1px solid #ccc;
+    }
+
+    .input-area input {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      margin-right: 8px;
+      font-size: 14px;
+    }
+
+    .input-area button {
+      padding: 10px 16px;
+      background: #28a745;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <img id="productPhoto" src="" alt="Product" />
+    <div class="info">
+      <h3 id="productName">Loading...</h3>
+    </div>
+  </div>
+
+  <div class="chat-box" id="chatBox"></div>
+
+  <div class="input-area">
+    <input type="text" id="messageInput" placeholder="Type your message..." />
+    <button onclick="sendMessage()">Send</button>
+  </div>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyAZK9TwSJAh2zrp7LxkUHfQur0pBsrnCfk",
+    authDomain: "ooiy-in.firebaseapp.com",
+    projectId: "ooiy-in",
+    storageBucket: "ooiy-in.firebasestorage.app",
+    messagingSenderId: "782642713796",
+    appId: "1:782642713796:web:821e8bc94d116db26d6591",
+    measurementId: "G-QHMLZ4WH73"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    const productId = new URLSearchParams(window.location.search).get("id");
+    const chatBox = document.getElementById("chatBox");
+    const input = document.getElementById("messageInput");
+    const productPhoto = document.getElementById("productPhoto");
+    const productName = document.getElementById("productName");
+
+    let currentUser = null;
+    let chatId = null;
+
+    // Get current user
+    auth.onAuthStateChanged(async user => {
+      if (!user) {
+        alert("Please log in first.");
+        window.location.href = "login.html";
+        return;
+      }
+
+      currentUser = user;
+
+      // Load product info
+      const productDoc = await db.collection("products").doc(productId).get();
+      if (!productDoc.exists) {
+        alert("Product not found.");
+        return;
+      }
+
+      const product = productDoc.data();
+      productName.textContent = product.name;
+      productPhoto.src = product.photos?.[0] || "https://via.placeholder.com/100";
+
+      const sellerId = product.userId;
+      if (!sellerId) return alert("Seller info missing.");
+
+      // Create chatId as combination of sorted UIDs
+      const ids = [currentUser.uid, sellerId].sort();
+      chatId = `${ids[0]}_${ids[1]}_${productId}`;
+
+      const chatRef = db.collection("chats").doc(chatId);
+      const chatSnap = await chatRef.get();
+      if (!chatSnap.exists) {
+        await chatRef.set({
+          participants: ids,
+          productId,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }
+
+      // Load messages
+      db.collection("chats").doc(chatId).collection("messages")
+        .orderBy("timestamp")
+        .onSnapshot(snapshot => {
+          chatBox.innerHTML = "";
+          snapshot.forEach(doc => {
+            const msg = doc.data();
+            const div = document.createElement("div");
+            div.className = "msg " + (msg.sender === currentUser.uid ? "sent" : "received");
+            div.textContent = msg.text;
+            chatBox.appendChild(div);
+          });
+          chatBox.scrollTop = chatBox.scrollHeight;
+        });
+    });
+
+    async function sendMessage() {
+      const text = input.value.trim();
+      if (!text || !chatId || !currentUser) return;
+
+      await db.collection("chats").doc(chatId).collection("messages").add({
+        text,
+        sender: currentUser.uid,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      input.value = "";
+    }
+  </script>
+
+</body>
+</html>

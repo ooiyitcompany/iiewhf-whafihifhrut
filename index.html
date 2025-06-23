@@ -1,14 +1,16 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Ooiy: Buy & Sell, Find Service</title>
+  <title>Ooiy Shop</title>
 
-  <!-- Firebase & Lucide -->
+  <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
 
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -53,6 +55,10 @@
       border: none;
       padding: 0 15px;
       cursor: pointer;
+    }
+
+    .search-bar button i {
+      font-size: 16px;
     }
 
     main {
@@ -122,9 +128,8 @@
       color: #007bff;
     }
 
-    .nav-btn svg {
-      width: 24px;
-      height: 24px;
+    .nav-btn i {
+      font-size: 20px;
       margin-bottom: 3px;
     }
   </style>
@@ -136,28 +141,28 @@
     <form class="search-bar" action="search.html">
       <input type="text" name="q" placeholder="Search products..." required>
       <button type="submit">
-        <i data-lucide="search"></i>
+        <i class="fa-solid fa-magnifying-glass"></i>
       </button>
     </form>
   </header>
 
   <!-- Product Grid -->
   <main id="productList">
-    <!-- Products from Firebase will load here -->
+    <!-- Products will load here -->
   </main>
 
   <!-- Bottom Navigation -->
   <nav class="bottom-nav">
     <a href="index.html" class="nav-btn">
-      <i data-lucide="home"></i>
+      <i class="fa-solid fa-house"></i>
       <span>Home</span>
     </a>
     <a href="cart.html" class="nav-btn">
-      <i data-lucide="shopping-cart"></i>
+      <i class="fa-solid fa-cart-shopping"></i>
       <span>My Cart</span>
     </a>
     <a href="profile.html" class="nav-btn">
-      <i data-lucide="user"></i>
+      <i class="fa-solid fa-user"></i>
       <span>Profile</span>
     </a>
   </nav>
@@ -165,7 +170,13 @@
   <!-- Firebase Init & Product Fetch -->
   <script>
     const firebaseConfig = {
-      
+      apiKey: "AIzaSyAZK9TwSJAh2zrp7LxkUHfQur0pBsrnCfk",
+    authDomain: "ooiy-in.firebaseapp.com",
+    projectId: "ooiy-in",
+    storageBucket: "ooiy-in.firebasestorage.app",
+    messagingSenderId: "782642713796",
+    appId: "1:782642713796:web:821e8bc94d116db26d6591",
+    measurementId: "G-QHMLZ4WH73"
     };
 
     firebase.initializeApp(firebaseConfig);
@@ -174,30 +185,56 @@
     const productList = document.getElementById('productList');
 
     async function loadProducts() {
-      const snapshot = await db.collection('products').orderBy('createdAt', 'desc').get();
+      const snapshot = await db.collection('details').get();
+      const allProducts = [];
+
       snapshot.forEach(doc => {
+        const userId = doc.id;
         const data = doc.data();
+
+        Object.entries(data).forEach(([key, value]) => {
+          if (key.startsWith('product') && value.name) {
+            allProducts.push({
+              ...value,
+              userId,
+              key
+            });
+          }
+        });
+      });
+
+      // Sort newest first if createdAt is available
+      allProducts.sort((a, b) => {
+        const aTime = a.createdAt?.seconds || 0;
+        const bTime = b.createdAt?.seconds || 0;
+        return bTime - aTime;
+      });
+
+      allProducts.forEach(productData => {
         const product = document.createElement('div');
         product.className = 'product';
-        product.onclick = () => {
-          window.location.href = `view.html?id=${doc.id}`;
-        };
 
-        const photoUrl = (data.photos && data.photos.length > 0) ? data.photos[0] : 'placeholder.jpg';
+        const photoUrl = (productData.photos && productData.photos.length > 0)
+          ? productData.photos[0]
+          : 'https://via.placeholder.com/300x200?text=No+Image';
 
         product.innerHTML = `
-          <img src="${photoUrl}" alt="${data.name}">
+          <img src="${photoUrl}" alt="${productData.name}">
           <div class="product-details">
-            <h3>${data.name}</h3>
-            <p>₹${data.price}</p>
+            <h3>${productData.name}</h3>
+            <p>₹${productData.price}</p>
           </div>
         `;
+
+        product.onclick = () => {
+          window.location.href = `view.html?user=${productData.userId}&key=${productData.key}`;
+        };
+
         productList.appendChild(product);
       });
     }
 
     loadProducts();
-    lucide.createIcons();
   </script>
 
 </body>
