@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Upload Product</title>
 
   <!-- Firebase -->
@@ -11,83 +11,124 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 
-  <!-- Icons + Selectize -->
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Google Maps + Places Autocomplete -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAWlcGVF9zF8jSKCxlECIhof1Mhe5HIfyM&libraries=places"></script>
+
+  <!-- Selectize + Sortable -->
   <link href="https://cdn.jsdelivr.net/npm/selectize@0.12.6/dist/css/selectize.default.css" rel="stylesheet"/>
   <script src="https://cdn.jsdelivr.net/npm/selectize@0.12.6/dist/js/standalone/selectize.min.js"></script>
-
-  <!-- Reorder library -->
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 
   <style>
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      background: #f4f6f8;
-      padding: 1rem;
-      margin-bottom: 80px;
-    }
-    form {
-      max-width: 600px;
-      margin: auto;
-      background: #fff;
-      padding: 20px;
-      border-radius: 10px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    }
-    label {
-      display: block;
-      margin-top: 1rem;
-      font-weight: bold;
-    }
-    input, textarea, select {
-      width: 100%;
-      padding: 10px;
-      margin-top: 5px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      font-size: 16px;
-    }
-    .photo-preview {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 10px;
-    }
-    .photo-box {
-      position: relative;
-      cursor: grab;
-    }
-    .photo-box img {
-      width: 80px;
-      height: 80px;
-      object-fit: cover;
-      border-radius: 8px;
-      border: 1px solid #ccc;
-    }
-    .photo-box button {
-      position: absolute;
-      top: -6px;
-      right: -6px;
-      background: red;
-      color: white;
-      border: none;
-      border-radius: 50%;
-      width: 20px;
-      height: 20px;
-      cursor: pointer;
-    }
-    .submit-btn {
-      margin-top: 2rem;
-      background: #28a745;
-      color: white;
-      padding: 12px;
-      border: none;
-      border-radius: 6px;
-      font-size: 16px;
-      cursor: pointer;
-      width: 100%;
-    }
-  </style>
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    background: #f4f6f8;
+    padding: 1rem;
+    margin-bottom: 80px;
+  }
+
+  form {
+    max-width: 600px;
+    margin: auto;
+    background: #fff;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  }
+
+  label {
+    display: block;
+    margin-top: 1.2rem;
+    font-weight: 600;
+    color: #333;
+  }
+
+  .price-input {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 5px;
+  }
+
+  .currency-symbol {
+    font-size: 1.2em;
+    font-weight: 600;
+    color: #555;
+    min-width: 24px;
+  }
+
+  input,
+  textarea,
+  select {
+    width: 100%;
+    padding: 10px;
+    margin-top: 5px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 16px;
+    box-sizing: border-box;
+  }
+
+  textarea {
+    resize: vertical;
+  }
+
+  .photo-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  .photo-box {
+    position: relative;
+    width: 80px;
+    height: 80px;
+    cursor: grab;
+  }
+
+  .photo-box img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+  }
+
+  .photo-box button {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: #e53935;
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    font-size: 14px;
+    line-height: 20px;
+    text-align: center;
+    cursor: pointer;
+  }
+
+  .submit-btn {
+    margin-top: 2rem;
+    background: #28a745;
+    color: white;
+    padding: 12px;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    cursor: pointer;
+    width: 100%;
+    transition: background 0.2s ease;
+  }
+
+  .submit-btn:hover {
+    background: #218838;
+  }
+</style>
+
 </head>
 <body>
 
@@ -95,40 +136,52 @@
 
 <form id="uploadForm">
   <label>Product Name</label>
-  <input type="text" name="productName" required />
+  <input type="text" name="productName" maxlength="60" required/>
 
   <label>Description</label>
   <textarea name="description" rows="4" required></textarea>
 
-  <label>Price (₹)</label>
-  <input type="number" name="price" min="1" required />
+  <label>Price</label>
+  <div class="price-input">
+    <span class="currency-symbol" id="currencySymbol">₹</span>
+    <input type="number" step="0.01" name="price" min="0.01" required/>
+  </div>
 
   <label>Select Category</label>
-  <select id="categorySelect" name="category" placeholder="Search category..." required>
+  <select id="categorySelect" name="category" required>
     <option value="">-- Select Category --</option>
-    <option value="Land">Land</option>
-    <option value="Mobile">Mobile</option>
-    <option value="Laptop">Laptop</option>
-    <option value="Furniture">Furniture</option>
-    <option value="Vehicle">Vehicle</option>
-    <option value="Fashion">Fashion</option>
+    <option>Land</option><option>Mobile</option><option>Laptop</option><option>Furniture</option><option>Vehicle</option><option>Fashion</option>
   </select>
 
   <label>Type Product</label>
-  <input type="text" name="type" placeholder="New, Used, Refurbished" required />
+  <input type="text" name="type" placeholder="New, Used, Refurbished" required/>
 
   <label>Product Photos (Max 10)</label>
-  <input type="file" id="photosInput" multiple accept="image/*" />
+  <input type="file" id="photosInput" multiple accept="image/*"/>
   <div class="photo-preview" id="photoPreview"></div>
 
   <label>Product Location</label>
-  <input type="text" name="location" id="locationInput" required />
+  <input type="text" id="locationInput" name="location" placeholder="Type or autocomplete" required/>
+  <input type="hidden" id="lat" name="latitude"/>
+  <input type="hidden" id="lng" name="longitude"/>
 
   <button type="submit" class="submit-btn">Upload Product</button>
 </form>
 
 <script>
-  const firebaseConfig = {
+  // Country code ↔ symbol map
+  const currencyMap = {
+    "IN": "₹", "US": "$", "CA": "$", "GB": "£", "EU": "€", "JP": "¥", "AU": "$",
+    "CN": "¥", "RU": "₽", "BR": "R$", "MX": "$", "ZA": "R", "SG": "S$", "MY": "RM",
+    "ID": "Rp", "PK": "₨", "BD": "৳"
+  };
+  function setCurrencySymbol(countryCode) {
+    const symbol = currencyMap[countryCode] || "$";
+    document.getElementById('currencySymbol').textContent = symbol;
+  }
+
+  // Firebase init
+  firebase.initializeApp({
     apiKey: "AIzaSyAZK9TwSJAh2zrp7LxkUHfQur0pBsrnCfk",
     authDomain: "ooiy-in.firebaseapp.com",
     projectId: "ooiy-in",
@@ -136,132 +189,121 @@
     messagingSenderId: "782642713796",
     appId: "1:782642713796:web:821e8bc94d116db26d6591",
     measurementId: "G-QHMLZ4WH73"
-    
-  };
+  });
+  const auth = firebase.auth(), db = firebase.firestore(), storage = firebase.storage();
 
-  firebase.initializeApp(firebaseConfig);
-  const auth = firebase.auth();
-  const db = firebase.firestore();
-  const storage = firebase.storage();
-
-  const photosInput = document.getElementById('photosInput');
-  const photoPreview = document.getElementById('photoPreview');
+  // Photo preview
+  const photosInput = document.getElementById('photosInput'), photoPreview = document.getElementById('photoPreview');
   let selectedPhotos = [];
-
-  photosInput.addEventListener('change', (e) => {
+  photosInput.addEventListener('change', e => {
     const files = Array.from(e.target.files);
-    if ((selectedPhotos.length + files.length) > 10) {
-      alert("Maximum 10 photos allowed");
-      return;
-    }
-    files.forEach(file => {
-      selectedPhotos.push(file);
-      const reader = new FileReader();
-      reader.onload = function (e) {
+    if (selectedPhotos.length + files.length > 10) return alert("Max 10 photos.");
+    files.forEach(f => {
+      selectedPhotos.push(f);
+      const r = new FileReader();
+      r.onload = ev => {
         const box = document.createElement('div');
         box.className = 'photo-box';
-        box.setAttribute('data-name', file.name);
-        box.innerHTML = `<img src="${e.target.result}" /><button onclick="removePhoto('${file.name}')">&times;</button>`;
+        box.dataset.name = f.name;
+        box.innerHTML = `<img src="${ev.target.result}"/><button onclick="removePhoto('${f.name}')">&times;</button>`;
         photoPreview.appendChild(box);
-      }
-      reader.readAsDataURL(file);
+      };
+      r.readAsDataURL(f);
     });
-    photosInput.value = "";
+    photosInput.value = '';
   });
-
-  function removePhoto(name) {
-    selectedPhotos = selectedPhotos.filter(f => f.name !== name);
-    [...photoPreview.children].forEach(child => {
-      if (child.getAttribute('data-name') === name) child.remove();
-    });
-  }
-
+  window.removePhoto = name => {
+    selectedPhotos = selectedPhotos.filter(a => a.name !== name);
+    Array.from(photoPreview.children)
+      .filter(c => c.dataset.name === name)
+      .forEach(c => c.remove());
+  };
   new Sortable(photoPreview, {
     animation: 150,
     onEnd: () => {
-      const names = [...photoPreview.children].map(c => c.getAttribute('data-name'));
-      selectedPhotos.sort((a, b) => names.indexOf(a.name) - names.indexOf(b.name));
+      const order = Array.from(photoPreview.children).map(c => c.dataset.name);
+      selectedPhotos.sort((a, b) => order.indexOf(a.name) - order.indexOf(b.name));
     }
   });
 
-  navigator.geolocation.getCurrentPosition(async (position) => {
-    const { latitude, longitude } = position.coords;
-    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
-    const data = await response.json();
-    const addr = data.address;
-    document.getElementById('locationInput').value = `${addr.suburb || addr.neighbourhood || addr.city || addr.town || addr.village || ''}, ${addr.state || addr.county || ''}, ${addr.postcode || ''}`;
-  }, (error) => {
-    console.warn("Location not detected.");
-  }, {
-    enableHighAccuracy: true,
-    timeout: 10000,
-    maximumAge: 0
-  });
+  // Places autocomplete
+  let autocomplete;
+  function initAutocomplete() {
+    autocomplete = new google.maps.places.Autocomplete(document.getElementById('locationInput'), {
+      types: ['geocode'], componentRestrictions: {}
+    });
+    autocomplete.addListener('place_changed', function() {
+      const p = autocomplete.getPlace();
+      if (!p.geometry) return alert("No location details found.");
+      document.getElementById('lat').value = p.geometry.location.lat();
+      document.getElementById('lng').value = p.geometry.location.lng();
+    });
+  }
 
-  document.getElementById('uploadForm').addEventListener('submit', async function (e) {
+  // Auto geo + currency
+  function setLocationAutomatically() {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(async pos => {
+      const { latitude, longitude } = pos.coords;
+      document.getElementById('lat').value = latitude;
+      document.getElementById('lng').value = longitude;
+      try {
+        const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+        const d = await r.json();
+        const a = d.address;
+        document.getElementById('locationInput').value =
+          [a.city||a.town||a.village||a.suburb, a.state, a.country].filter(Boolean).join(', ');
+        if (d.address.country_code) {
+          setCurrencySymbol(d.address.country_code.toUpperCase());
+        }
+      } catch(e) {
+        console.warn('reverse geocode err', e);
+      }
+    }, e => console.warn('geo err', e), { enableHighAccuracy: true, timeout:10000 });
+  }
+
+  // Form submit
+  document.getElementById('uploadForm').addEventListener('submit', async e => {
     e.preventDefault();
-    const user = auth.currentUser;
-    if (!user) return alert("Login required");
-
-    const form = e.target;
-    const name = form.productName.value;
-    const description = form.description.value;
-    const price = parseFloat(form.price.value);
-    const category = form.category.value;
-    const type = form.type.value;
-    const location = form.location.value;
-
-    const photoURLs = [];
-    for (let i = 0; i < selectedPhotos.length; i++) {
-      const file = selectedPhotos[i];
-      const ref = storage.ref(`products/${user.uid}/${Date.now()}_${file.name}`);
-      await ref.put(file);
-      const url = await ref.getDownloadURL();
-      photoURLs.push(url);
-    }
-
-    const productData = {
-      name,
-      description,
-      price,
-      category,
-      type,
-      location,
-      photos: photoURLs,
+    const u = auth.currentUser;
+    if (!u) return alert("Please log in.");
+    const f = e.target;
+    const data = {
+      name: f.productName.value,
+      description: f.description.value,
+      price: parseFloat(f.price.value),
+      currency: document.getElementById('currencySymbol').textContent,
+      category: f.category.value,
+      type: f.type.value,
+      location: f.location.value,
+      latitude: parseFloat(f.latitude.value),
+      longitude: parseFloat(f.longitude.value),
+      photos: [],
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     };
-
-    const userRef = db.collection("details").doc(user.uid);
-    const userDoc = await userRef.get();
-
-    if (!userDoc.exists) {
-      alert("User profile not found. Please complete profile first.");
-      window.location.href = "details.html";
-      return;
+    for (let img of selectedPhotos) {
+      const ref = storage.ref(`products/${u.uid}/${Date.now()}_${img.name}`);
+      await ref.put(img);
+      data.photos.push(await ref.getDownloadURL());
     }
-
-    const data = userDoc.data();
-    const productFields = Object.keys(data).filter(k => k.startsWith("product"));
-    const nextIndex = productFields.length;
-    const newField = `product${nextIndex}`;
-
-    await userRef.update({
-      [newField]: productData
-    });
-
-    alert("Product uploaded successfully!");
-    form.reset();
-    photoPreview.innerHTML = "";
-    selectedPhotos = [];
+    const uref = db.collection("details").doc(u.uid);
+    const d = await uref.get();
+    if (!d.exists) {
+      alert("Complete your profile first."); location.href="details.html"; return;
+    }
+    const count = Object.keys(d.data()).filter(k=>k.startsWith('product')).length;
+    await uref.update({ [`product${count}`]: data });
+    alert("Uploaded successfully!");
+    f.reset(); photoPreview.innerHTML = ""; selectedPhotos = [];
   });
 
+  // Initialize
   window.addEventListener('DOMContentLoaded', () => {
-    $('#categorySelect').selectize({
-      sortField: 'text',
-      create: false,
-      allowEmptyOption: false,
-    });
+    initAutocomplete();
+    setLocationAutomatically();
+    $('#categorySelect').selectize({ sortField:'text', create:false, allowEmptyOption:false });
   });
 </script>
+
 </body>
 </html>
