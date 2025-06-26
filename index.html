@@ -9,232 +9,140 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 
-  <!-- Font Awesome -->
+  <!-- Font Awesome for icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
 
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      background: #f9f9f9;
-      padding-bottom: 70px;
-    }
-
-    header {
-      display: flex;
-      justify-content: center;
-      padding: 1rem;
-      background: white;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      position: sticky;
-      top: 0;
-      z-index: 100;
-    }
-
-    .search-bar {
-      display: flex;
-      width: 100%;
-      max-width: 500px;
-      background: #eee;
-      border-radius: 10px;
-      overflow: hidden;
-    }
-
-    .search-bar input {
-      flex: 1;
-      padding: 10px;
-      border: none;
-      background: transparent;
-      outline: none;
-    }
-
-    .search-bar button {
-      background: #007bff;
-      color: white;
-      border: none;
-      padding: 0 15px;
-      cursor: pointer;
-    }
-
-    .search-bar button i {
-      font-size: 16px;
-    }
-
-    main {
-      padding: 1rem;
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 1rem;
-    }
-
-    .product {
-      background: white;
-      border: 1px solid #ddd;
-      border-radius: 10px;
-      overflow: hidden;
-      cursor: pointer;
-      transition: transform 0.2s;
-    }
-
-    .product:hover {
-      transform: scale(1.02);
-    }
-
-    .product img {
-      width: 100%;
-      height: 150px;
-      object-fit: cover;
-    }
-
-    .product-details {
-      padding: 0.8rem;
-    }
-
-    .product-details h3 {
-      font-size: 16px;
-      margin-bottom: 4px;
-    }
-
-    .product-details p {
-      color: #007bff;
-      font-weight: bold;
-      font-size: 14px;
-    }
-
-    .bottom-nav {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      width: 100%;
-      background: white;
-      border-top: 1px solid #ddd;
-      display: flex;
-      justify-content: space-around;
-      padding: 0.5rem 0;
-      z-index: 100;
-    }
-
-    .nav-btn {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      font-size: 12px;
-      color: #555;
-      text-decoration: none;
-    }
-
-    .nav-btn:hover {
-      color: #007bff;
-    }
-
-    .nav-btn i {
-      font-size: 20px;
-      margin-bottom: 3px;
-    }
+    body { font-family: 'Segoe UI', sans-serif; background: #f9f9f9; padding-bottom: 70px; }
+    header { display: flex; justify-content: center; padding: 1rem; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 100; }
+    .search-bar { display: flex; width: 100%; max-width: 500px; background: #eee; border-radius: 10px; overflow: hidden; }
+    .search-bar input { flex: 1; padding: 10px; border: none; background: transparent; outline: none; }
+    .search-bar button { background: #007bff; color: white; border: none; padding: 0 15px; cursor: pointer; }
+    .search-bar button i { font-size: 16px; }
+    main { padding: 1rem; display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+    .product { background: white; border: 1px solid #ddd; border-radius: 10px; overflow: hidden; cursor: pointer; transition: transform 0.2s; }
+    .product:hover { transform: scale(1.02); }
+    .product img { width: 100%; height: 150px; object-fit: cover; }
+    .product-details { padding: 0.8rem; }
+    .product-details h3 { font-size: 16px; margin-bottom: 4px; }
+    .product-details p { color: #007bff; font-weight: bold; font-size: 14px; }
+    .distance { font-size: 12px; color: #555; margin-top: 4px; }
+    .bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: white; border-top: 1px solid #ddd; display: flex; justify-content: space-around; padding: 0.5rem 0; z-index: 100; }
+    .nav-btn { display: flex; flex-direction: column; align-items: center; font-size: 12px; color: #555; text-decoration: none; }
+    .nav-btn:hover { color: #007bff; }
+    .nav-btn i { font-size: 20px; margin-bottom: 3px; }
   </style>
 </head>
 <body>
 
-  <!-- Search -->
+  <!-- Search Bar -->
   <header>
     <form class="search-bar" action="search.html">
-      <input type="text" name="q" placeholder="Search products..." required>
-      <button type="submit">
-        <i class="fa-solid fa-magnifying-glass"></i>
-      </button>
+      <input type="text" name="q" placeholder="Search products..." required />
+      <button type="submit"><i class="fa-solid fa-magnifying-glass"></i></button>
     </form>
   </header>
 
-  <!-- Product Grid -->
-  <main id="productList">
-    <!-- Products will load here -->
-  </main>
+  <!-- Products Grid -->
+  <main id="productList"></main>
 
-  <!-- Bottom Navigation -->
+  <!-- Navigation Bar -->
   <nav class="bottom-nav">
-    <a href="index.html" class="nav-btn">
-      <i class="fa-solid fa-house"></i>
-      <span>Home</span>
-    </a>
-    <a href="cart.html" class="nav-btn">
-      <i class="fa-solid fa-cart-shopping"></i>
-      <span>My Cart</span>
-    </a>
-    <a href="profile.html" class="nav-btn">
-      <i class="fa-solid fa-user"></i>
-      <span>Profile</span>
-    </a>
+    <a href="index.html" class="nav-btn"><i class="fa-solid fa-house"></i><span>Home</span></a>
+    <a href="cart.html" class="nav-btn"><i class="fa-solid fa-cart-shopping"></i><span>My Cart</span></a>
+    <a href="profile.html" class="nav-btn"><i class="fa-solid fa-user"></i><span>Profile</span></a>
   </nav>
 
-  <!-- Firebase Init & Product Fetch -->
   <script>
+    // Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyAZK9TwSJAh2zrp7LxkUHfQur0pBsrnCfk",
-    authDomain: "ooiy-in.firebaseapp.com",
-    projectId: "ooiy-in",
-    storageBucket: "ooiy-in.firebasestorage.app",
-    messagingSenderId: "782642713796",
-    appId: "1:782642713796:web:821e8bc94d116db26d6591",
-    measurementId: "G-QHMLZ4WH73"
+      authDomain: "ooiy-in.firebaseapp.com",
+      projectId: "ooiy-in",
+      storageBucket: "ooiy-in.firebasestorage.app",
+      messagingSenderId: "782642713796",
+      appId: "1:782642713796:web:821e8bc94d116db26d6591",
+      measurementId: "G-QHMLZ4WH73"
     };
-
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
     const productList = document.getElementById('productList');
+    let userLat = null, userLng = null;
+
+    // Haversine formula for distance
+    function getDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2)**2 +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2)**2;
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
 
     async function loadProducts() {
       const snapshot = await db.collection('details').get();
-      const allProducts = [];
+      const nearby = [];
+      const others = [];
 
       snapshot.forEach(doc => {
         const userId = doc.id;
         const data = doc.data();
-
-        Object.entries(data).forEach(([key, value]) => {
-          if (key.startsWith('product') && value.name) {
-            allProducts.push({
-              ...value,
-              userId,
-              key
-            });
+        for (let key in data) {
+          const v = data[key];
+          if (key.startsWith('product') && v.latitude && v.longitude) {
+            const dist = userLat != null
+              ? getDistance(userLat, userLng, v.latitude, v.longitude)
+              : Infinity;
+            const item = { ...v, userId, key, dist };
+            dist <= 2 ? nearby.push(item) : others.push(item);
           }
-        });
+        }
       });
 
-      // Sort newest first if createdAt is available
-      allProducts.sort((a, b) => {
-        const aTime = a.createdAt?.seconds || 0;
-        const bTime = b.createdAt?.seconds || 0;
-        return bTime - aTime;
-      });
+      nearby.sort((a, b) => a.dist - b.dist);
+      others.sort((a, b) => a.dist - b.dist);
+      const items = nearby.concat(others);
 
-      allProducts.forEach(productData => {
-        const product = document.createElement('div');
-        product.className = 'product';
-
-        const photoUrl = (productData.photos && productData.photos.length > 0)
-          ? productData.photos[0]
-          : 'https://via.placeholder.com/300x200?text=No+Image';
-
-        product.innerHTML = `
-          <img src="${photoUrl}" alt="${productData.name}">
+      items.forEach(v => {
+        const card = document.createElement('div');
+        card.className = 'product';
+        const photo = v.photos?.[0] || 'https://via.placeholder.com/300x200?text=No+Image';
+        const price = v.price?.toLocaleString(undefined, { minimumFractionDigits: 0 }) || '0';
+        card.innerHTML = `
+          <img src="${photo}" alt="${v.name}">
           <div class="product-details">
-            <h3>${productData.name}</h3>
-            <p>₹${productData.price}</p>
-          </div>
-        `;
-
-        product.onclick = () => {
-          window.location.href = `view.html?user=${productData.userId}&key=${productData.key}`;
-        };
-
-        productList.appendChild(product);
+            <h3>${v.name}</h3>
+            <p>${v.currency || '₹'}${price}</p>
+            <div class="distance">
+              ${v.dist !== Infinity ? v.dist.toFixed(1) + ' km away' : ''}
+              ${v.dist <= 2 ? ' ⭐' : ''}
+            </div>
+          </div>`;
+        card.onclick = () => location.href = `view.html?user=${v.userId}&key=${v.key}`;
+        productList.appendChild(card);
       });
     }
 
-    loadProducts();
+    function init() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+          userLat = pos.coords.latitude;
+          userLng = pos.coords.longitude;
+          loadProducts();
+        }, () => {
+          console.warn("Location access denied. Showing all.");
+          loadProducts();
+        }, { enableHighAccuracy: true });
+      } else {
+        loadProducts();
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', init);
   </script>
 
 </body>
