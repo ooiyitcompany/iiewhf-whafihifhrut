@@ -1,85 +1,39 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Complete Profile - Ooiy</title>
   <style>
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      background-color: #f2f2f2;
-      padding: 30px;
-    }
-
-    .container {
-      max-width: 400px;
-      margin: auto;
-      background: #fff;
-      padding: 25px;
-      border-radius: 12px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    }
-
-    h2 {
-      text-align: center;
-      color: #333;
-      margin-bottom: 20px;
-    }
-
-    input[type="text"], input[type="file"] {
-      width: 100%;
-      padding: 12px;
-      margin: 10px 0;
-      border: 1px solid #ccc;
-      border-radius: 8px;
-    }
-
-    #username-status {
-      font-size: 14px;
-      margin-top: -8px;
-      margin-bottom: 10px;
-    }
-
-    button {
-      width: 100%;
-      padding: 12px;
-      background-color: #28a745;
-      color: white;
-      border: none;
-      font-size: 16px;
-      border-radius: 8px;
-      cursor: pointer;
-    }
-
-    button:hover {
-      background-color: #218838;
-    }
-
-    .error {
-      color: red;
-      font-size: 14px;
-      margin-top: 10px;
-    }
-
-    .success {
-      color: green;
-      font-size: 14px;
-      margin-top: 10px;
-    }
+    /* Standard styling */
+    body { font-family: 'Segoe UI', sans-serif; background:#f2f2f2; padding:30px; }
+    .container { max-width:400px; margin:auto; background:#fff; padding:25px; border-radius:12px; box-shadow:0 0 10px rgba(0,0,0,0.1); }
+    h2 { text-align:center; color:#333; margin-bottom:20px; }
+    input[type="text"], input[type="file"] { width:100%; padding:12px; margin:10px 0; border:1px solid #ccc; border-radius:8px; box-sizing:border-box; }
+    #username-status { font-size:14px; margin-top:-8px; margin-bottom:10px; }
+    button { width:100%; padding:12px; background:#28a745; color:#fff; font-size:16px; border:none; border-radius:8px; cursor:pointer; }
+    button:hover { background:#218838; }
+    .error { color:red; font-size:14px; margin-top:10px; }
+    .success { color:green; font-size:14px; margin-top:10px; }
   </style>
+  <!-- Google Places script -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAWlcGVF9zF8jSKCxlECIhof1Mhe5HIfyM&libraries=places"></script>
 </head>
 <body>
+
   <div class="container">
     <h2>Complete Your Profile</h2>
-    <input type="text" id="name" placeholder="Your Full Name (max 35 chars)" maxlength="35" required />
-    
-    <input type="text" id="username" placeholder="Choose a Username (max 30 chars)" maxlength="30" required />
+    <input type="text" id="name" placeholder="Your Full Name (max 35 chars)" maxlength="35" required/>
+    <input type="text" id="username" placeholder="Choose a Username (max 30 chars)" maxlength="30" required/>
     <div id="username-status"></div>
-    
-    <input type="file" id="photo" accept="image/*" required />
-    
+    <input type="file" id="photo" accept="image/*" required/>
+
+    <!-- Manual + autocomplete location -->
+    <input type="text" id="locationInput" placeholder="Type or auto-detected address" required/>
+    <input type="hidden" id="latitude"/>
+    <input type="hidden" id="longitude"/>
+
     <button id="save-btn">Save Profile</button>
-    
     <div class="error" id="error-message"></div>
     <div class="success" id="success-message"></div>
   </div>
@@ -92,12 +46,12 @@
 
     const firebaseConfig = {
       apiKey: "AIzaSyAZK9TwSJAh2zrp7LxkUHfQur0pBsrnCfk",
-    authDomain: "ooiy-in.firebaseapp.com",
-    projectId: "ooiy-in",
-    storageBucket: "ooiy-in.firebasestorage.app",
-    messagingSenderId: "782642713796",
-    appId: "1:782642713796:web:821e8bc94d116db26d6591",
-    measurementId: "G-QHMLZ4WH73"
+      authDomain: "ooiy-in.firebaseapp.com",
+      projectId: "ooiy-in",
+      storageBucket: "ooiy-in.firebasestorage.app",
+      messagingSenderId: "782642713796",
+      appId: "1:782642713796:web:821e8bc94d116db26d6591",
+      measurementId: "G-QHMLZ4WH73"
     };
 
     const app = initializeApp(firebaseConfig);
@@ -105,83 +59,104 @@
     const db = getFirestore(app);
     const storage = getStorage(app);
 
-    const nameInput = document.getElementById('name');
-    const usernameInput = document.getElementById('username');
-    const photoInput = document.getElementById('photo');
-    const saveBtn = document.getElementById('save-btn');
-    const errorMessage = document.getElementById('error-message');
-    const successMessage = document.getElementById('success-message');
-    const usernameStatus = document.getElementById('username-status');
+    const nameInput = document.getElementById('name'),
+          usernameInput = document.getElementById('username'),
+          photoInput = document.getElementById('photo'),
+          locationInput = document.getElementById('locationInput'),
+          latInput = document.getElementById('latitude'),
+          lngInput = document.getElementById('longitude'),
+          saveBtn = document.getElementById('save-btn'),
+          errMsg = document.getElementById('error-message'),
+          successMsg = document.getElementById('success-message'),
+          userStatus = document.getElementById('username-status');
 
     let currentUser = null;
+    let autocomplete;
 
-    // Username check
+    function initAutocomplete() {
+      autocomplete = new google.maps.places.Autocomplete(locationInput, { types: ['geocode'] });
+      autocomplete.addListener('place_changed', () => {
+        const place = autocomplete.getPlace();
+        if (!place.geometry) return;
+        latInput.value = place.geometry.location.lat();
+        lngInput.value = place.geometry.location.lng();
+      });
+    }
+
+    function autoDetectLocation() {
+      if (!navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition(async pos => {
+        const { latitude, longitude } = pos.coords;
+        latInput.value = latitude;
+        lngInput.value = longitude;
+        try {
+          const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+          const data = await resp.json();
+          const a = data.address;
+          locationInput.value = [a.city||a.town||a.village||a.suburb, a.state, a.country].filter(Boolean).join(', ');
+        } catch(e) {
+          console.warn("Reverse geocode failed", e);
+        }
+      }, e => console.warn("Geo error", e), { enableHighAccuracy:true, timeout:10000 });
+    }
+
     usernameInput.addEventListener('input', async () => {
-      const value = usernameInput.value.trim().toLowerCase();
-      usernameStatus.textContent = '';
-      if (value.length < 3) return;
-
-      const q = query(collection(db, "details"), where("username", "==", value));
-      const snapshot = await getDocs(q);
-
-      if (!snapshot.empty) {
-        usernameStatus.textContent = "❌ Username not available";
-        usernameStatus.style.color = "red";
-      } else {
-        usernameStatus.textContent = "✅ Username available";
-        usernameStatus.style.color = "green";
-      }
+      const val = usernameInput.value.trim().toLowerCase();
+      userStatus.textContent = "";
+      if (val.length < 3) return;
+      const q = query(collection(db, "details"), where("username", "==", val));
+      const snap = await getDocs(q);
+      userStatus.textContent = snap.empty ? "✅ Username available" : "❌ Username taken";
+      userStatus.style.color = snap.empty ? "green" : "red";
     });
 
-    onAuthStateChanged(auth, (user) => {
-      if (user) {
-        currentUser = user;
-      } else {
-        window.location.href = "login.html";
-      }
+    onAuthStateChanged(auth, u => {
+      if (!u) window.location.href = "login.html";
+      currentUser = u;
     });
 
     saveBtn.addEventListener('click', async () => {
+      errMsg.textContent = "";
+      successMsg.textContent = "";
       const name = nameInput.value.trim();
-      const username = usernameInput.value.trim().toLowerCase();
+      const un = usernameInput.value.trim().toLowerCase();
       const file = photoInput.files[0];
+      const loc = locationInput.value.trim();
+      const lat = latInput.value;
+      const lng = lngInput.value;
 
-      errorMessage.textContent = '';
-      successMessage.textContent = '';
-
-      if (!name || !username || !file) {
-        errorMessage.textContent = "All fields are required.";
+      if (!name || !un || !file || !loc || !lat || !lng) {
+        errMsg.textContent = "All fields (including location) are required.";
+        return;
+      }
+      if (un.length < 3) {
+        errMsg.textContent = "Username must be at least 3 characters.";
+        return;
+      }
+      const q = query(collection(db, "details"), where("username", "==", un));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        errMsg.textContent = "Username already taken.";
         return;
       }
 
-      if (username.length < 3) {
-        errorMessage.textContent = "Username must be at least 3 characters.";
-        return;
-      }
+      const sRef = ref(storage, `profile_photos/${currentUser.uid}`);
+      await uploadBytes(sRef, file);
+      const photoURL = await getDownloadURL(sRef);
 
-      // Check if username taken
-      const checkQuery = query(collection(db, "details"), where("username", "==", username));
-      const checkSnap = await getDocs(checkQuery);
-      if (!checkSnap.empty) {
-        errorMessage.textContent = "Username is already taken.";
-        return;
-      }
-
-      // Upload photo
-      const storageRef = ref(storage, `profile_photos/${currentUser.uid}`);
-      await uploadBytes(storageRef, file);
-      const photoURL = await getDownloadURL(storageRef);
-
-      // Save profile (no location)
-      const userDetails = {
-        name,
-        username,
-        photo: photoURL
+      const userData = {
+        name, username: un, photo: photoURL,
+        location: loc, latitude: parseFloat(lat), longitude: parseFloat(lng)
       };
 
-      await setDoc(doc(db, "details", currentUser.uid), userDetails);
-      successMessage.textContent = "Details saved successfully!";
+      await setDoc(doc(db, "details", currentUser.uid), userData);
+      successMsg.textContent = "Profile saved!";
       setTimeout(() => window.location.href = "profile.html", 1500);
+    });
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initAutocomplete();
+      autoDetectLocation();
     });
   </script>
 </body>
