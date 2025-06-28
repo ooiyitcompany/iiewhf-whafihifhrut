@@ -19,23 +19,30 @@
       font-family: 'Segoe UI', sans-serif;
       background: #f9f9f9;
       padding-bottom: 70px;
+      overflow-x: hidden;
     }
 
     header {
       display: flex;
-      justify-content: center;
+      align-items: center;
       padding: 1rem;
       background: white;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
       position: sticky;
       top: 0;
-      z-index: 100;
+      z-index: 200;
+    }
+
+    .menu-btn {
+      font-size: 22px;
+      margin-right: 10px;
+      cursor: pointer;
+      color: #333;
     }
 
     .search-bar {
       display: flex;
-      width: 100%;
-      max-width: 500px;
+      flex: 1;
       background: #eee;
       border-radius: 10px;
       overflow: hidden;
@@ -55,10 +62,6 @@
       border: none;
       padding: 0 15px;
       cursor: pointer;
-    }
-
-    .search-bar button i {
-      font-size: 16px;
     }
 
     main {
@@ -132,12 +135,68 @@
       font-size: 20px;
       margin-bottom: 3px;
     }
+
+    /* Slide Menu */
+    .side-menu {
+      position: fixed;
+      top: 0;
+      left: -60%;
+      width: 60%;
+      height: 100%;
+      background: #fff;
+      box-shadow: 2px 0 8px rgba(0,0,0,0.2);
+      z-index: 300;
+      padding: 1rem;
+      transition: left 0.3s ease;
+    }
+
+    .side-menu.open {
+      left: 0;
+    }
+
+    .side-menu a {
+      display: block;
+      padding: 12px 0;
+      border-bottom: 1px solid #ddd;
+      color: #333;
+      text-decoration: none;
+      font-size: 16px;
+    }
+
+    .overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 100%;
+      width: 100%;
+      background: rgba(0, 0, 0, 0.3);
+      z-index: 250;
+      display: none;
+    }
+
+    .overlay.show {
+      display: block;
+    }
   </style>
 </head>
 <body>
 
-  <!-- Search -->
+  <!-- Side Menu -->
+  <div id="sideMenu" class="side-menu">
+  <a href="index.html"><i class="fa-solid fa-house" style="color:#007bff;"></i> Home</a>
+  <a href="myprod.html"><i class="fa-solid fa-star" style="color:#f39c12;"></i> Premium</a>
+  <a href="upload.html"><i class="fa-solid fa-upload" style="color:#27ae60;"></i> Upload</a>
+  <a href="inbox.html"><i class="fa-solid fa-envelope" style="color:#e74c3c;"></i> Inbox</a>
+  <a href="cart.html"><i class="fa-solid fa-cart-shopping" style="color:#9b59b6;"></i> My Cart</a>
+  <a href="myprod.html"><i class="fa-solid fa-box-open" style="color:#16a085;"></i> My Product</a>
+  <a href="profile.html"><i class="fa-solid fa-user" style="color:#34495e;"></i> Profile</a>
+</div>
+
+  <div id="overlay" class="overlay" onclick="toggleMenu()"></div>
+
+  <!-- Top Bar -->
   <header>
+    <i class="fa fa-bars menu-btn" onclick="toggleMenu()"></i>
     <form class="search-bar" action="search.html">
       <input type="text" name="q" placeholder="Search products..." required>
       <button type="submit">
@@ -171,12 +230,11 @@
   <script>
     const firebaseConfig = {
       apiKey: "AIzaSyAZK9TwSJAh2zrp7LxkUHfQur0pBsrnCfk",
-    authDomain: "ooiy-in.firebaseapp.com",
-    projectId: "ooiy-in",
-    storageBucket: "ooiy-in.firebasestorage.app",
-    messagingSenderId: "782642713796",
-    appId: "1:782642713796:web:821e8bc94d116db26d6591",
-    measurementId: "G-QHMLZ4WH73"
+      authDomain: "ooiy-in.firebaseapp.com",
+      projectId: "ooiy-in",
+      storageBucket: "ooiy-in.firebasestorage.app",
+      messagingSenderId: "782642713796",
+      appId: "1:782642713796:web:821e8bc94d116db26d6591"
     };
 
     firebase.initializeApp(firebaseConfig);
@@ -203,7 +261,6 @@
         });
       });
 
-      // Sort newest first if createdAt is available
       allProducts.sort((a, b) => {
         const aTime = a.createdAt?.seconds || 0;
         const bTime = b.createdAt?.seconds || 0;
@@ -235,6 +292,13 @@
     }
 
     loadProducts();
+
+    function toggleMenu() {
+      const menu = document.getElementById('sideMenu');
+      const overlay = document.getElementById('overlay');
+      menu.classList.toggle('open');
+      overlay.classList.toggle('show');
+    }
   </script>
 
 </body>
