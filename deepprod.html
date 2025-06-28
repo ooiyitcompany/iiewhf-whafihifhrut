@@ -137,13 +137,17 @@
     }, 2000);
   };
 
+  // ✅ Updated with confirmation
   cancelBtn.onclick = async () => {
+    const confirmCancel = confirm("Are you sure you want to cancel premium?");
+    if (!confirmCancel) return;
+
     await markPremium(false);
     showPremium();
   };
 
   function updateBtnLabel() {
-    premiumBtn.textContent = `Watch Ads Make Premium (${touchCount}/${MAX_TAPS})`;
+    premiumBtn.textContent = `Make Premium (${touchCount}/${MAX_TAPS})`;
   }
 
   function showPremium() {
