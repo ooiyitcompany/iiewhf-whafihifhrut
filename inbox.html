@@ -2,153 +2,128 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Inbox - Ooiy Shop</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Inbox - Ooiy</title>
 
-  <!-- Firebase & Lucide -->
+  <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
 
   <style>
     body {
       font-family: 'Segoe UI', sans-serif;
-      background: #f9f9f9;
       margin: 0;
+      background: #f1f1f1;
+    }
+
+    .header {
+      background: #007bff;
+      color: white;
       padding: 1rem;
-    }
-
-    h1 {
       text-align: center;
-      margin-bottom: 20px;
-    }
-
-    .chat-list {
-      max-width: 700px;
-      margin: auto;
+      font-size: 20px;
     }
 
     .chat-item {
+      background: white;
+      margin: 10px;
+      padding: 12px;
+      border-radius: 8px;
       display: flex;
       align-items: center;
-      background: white;
-      border-radius: 10px;
-      padding: 10px;
-      margin-bottom: 10px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      gap: 12px;
       cursor: pointer;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
     }
 
     .chat-item img {
-      width: 60px;
-      height: 60px;
-      border-radius: 10px;
+      width: 50px;
+      height: 50px;
       object-fit: cover;
-      margin-right: 15px;
+      border-radius: 6px;
     }
 
-    .chat-info {
+    .chat-item div {
       flex: 1;
     }
 
-    .chat-info h3 {
-      margin: 0 0 5px;
-      font-size: 18px;
-    }
-
-    .chat-info p {
-      margin: 0;
-      color: #555;
-      font-size: 14px;
-    }
-
-    .no-chat {
-      text-align: center;
-      color: #777;
+    .chat-item strong {
       font-size: 16px;
-      margin-top: 50px;
+    }
+
+    .chat-item small {
+      color: #555;
+      display: block;
+      margin-top: 4px;
+    }
+
+    .empty {
+      text-align: center;
+      margin-top: 40px;
+      color: #888;
     }
   </style>
 </head>
 <body>
 
-<h1>Your Inbox</h1>
-<div class="chat-list" id="chatList"></div>
-<div class="no-chat" id="noChat" style="display: none;">No chats found.</div>
+<div class="header">Your Inbox</div>
+<div id="inboxList"></div>
 
 <script>
-  lucide.createIcons();
-
   const firebaseConfig = {
     apiKey: "AIzaSyAZK9TwSJAh2zrp7LxkUHfQur0pBsrnCfk",
     authDomain: "ooiy-in.firebaseapp.com",
     projectId: "ooiy-in",
     storageBucket: "ooiy-in.firebasestorage.app",
     messagingSenderId: "782642713796",
-    appId: "1:782642713796:web:821e8bc94d116db26d6591",
-    measurementId: "G-QHMLZ4WH73"
+    appId: "1:782642713796:web:821e8bc94d116db26d6591"
   };
-
   firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
   const auth = firebase.auth();
 
-  const chatList = document.getElementById('chatList');
-  const noChat = document.getElementById('noChat');
+  const inboxList = document.getElementById('inboxList');
 
-  auth.onAuthStateChanged(async (user) => {
-    if (!user) {
-      alert("Please log in to view inbox.");
-      location.href = "login.html";
-      return;
-    }
-
+  auth.onAuthStateChanged(async user => {
+    if (!user) return location.href = "login.html";
     const uid = user.uid;
-    const inboxRef = db.collection("inbox").doc(uid).collection("chats").orderBy("lastUpdated", "desc");
 
-    inboxRef.onSnapshot(async (snapshot) => {
-      chatList.innerHTML = "";
-      if (snapshot.empty) {
-        noChat.style.display = "block";
-        return;
-      }
+    db.collection("inbox")
+      .doc(uid)
+      .collection("chats")
+      .orderBy("lastTime", "desc")
+      .onSnapshot(snapshot => {
+        inboxList.innerHTML = "";
 
-      noChat.style.display = "none";
+        if (snapshot.empty) {
+          inboxList.innerHTML = `<p class="empty">No chats yet.</p>`;
+          return;
+        }
 
-      for (const doc of snapshot.docs) {
-        const chat = doc.data();
-        const otherUser = chat.otherUser;
-        const productKey = chat.productKey;
-        const chatId = doc.id;
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          const otherId = data.otherUser;
+          const productKey = data.productKey;
+          const photo = data.productPhoto || "https://via.placeholder.com/50";
+          const name = data.productName || "Product";
+          const lastMsg = data.lastMessage || "";
 
-        try {
-          const detailsDoc = await db.collection("details").doc(otherUser).get();
-          const productData = detailsDoc.exists ? detailsDoc.data()[productKey] : null;
-
-          const productName = productData?.name || "Unknown";
-          const photo = productData?.photos?.[0] || "https://via.placeholder.com/60?text=No+Image";
-
-          const chatItem = document.createElement("div");
-          chatItem.className = "chat-item";
-          chatItem.innerHTML = `
-            <img src="${photo}" alt="Product" />
-            <div class="chat-info">
-              <h3>${productName}</h3>
-              <p>${chat.lastMessage || "Say hello!"}</p>
+          const div = document.createElement("div");
+          div.className = "chat-item";
+          div.innerHTML = `
+            <img src="${photo}" alt="Product">
+            <div>
+              <strong>${name}</strong>
+              <small>${lastMsg}</small>
             </div>
           `;
-
-          chatItem.onclick = () => {
-            location.href = `msg.html?user=${otherUser}&key=${productKey}`;
+          div.onclick = () => {
+            location.href = `msg.html?user=${otherId}&key=${productKey}`;
           };
-
-          chatList.appendChild(chatItem);
-        } catch (error) {
-          console.error("Failed to load product:", error);
-        }
-      }
-    });
+          inboxList.appendChild(div);
+        });
+      });
   });
 </script>
 
