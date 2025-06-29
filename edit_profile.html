@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Edit Profile - Ooiy</title>
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; background:#f2f2f2; padding:30px; }
+    .container { max-width:400px; margin:auto; background:#fff; padding:25px; border-radius:12px; box-shadow:0 0 10px rgba(0,0,0,0.1); }
+    h2 { text-align:center; color:#333; margin-bottom:20px; }
+    input[type="text"], input[type="file"] { width:100%; padding:12px; margin:10px 0; border:1px solid #ccc; border-radius:8px; box-sizing:border-box; }
+    #username-status { font-size:14px; margin-top:-8px; margin-bottom:10px; }
+    button { width:100%; padding:12px; background:#007bff; color:#fff; font-size:16px; border:none; border-radius:8px; cursor:pointer; }
+    button:hover { background:#0056b3; }
+    .error { color:red; font-size:14px; margin-top:10px; }
+    .success { color:green; font-size:14px; margin-top:10px; }
+    img#photo-preview { display:block; max-width:100px; max-height:100px; margin: 10px auto; border-radius: 50%; object-fit: cover; border: 2px solid #007bff; }
+  </style>
+  <!-- Google Places script -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAWlcGVF9zF8jSKCxlECIhof1Mhe5HIfyM&libraries=places"></script>
+</head>
+<body>
+
+  <div class="container">
+    <h2>Edit Your Profile</h2>
+    <input type="text" id="name" placeholder="Your Full Name (max 35 chars)" maxlength="35" required />
+    <input type="text" id="username" placeholder="Choose a Username (max 30 chars)" maxlength="30" required />
+    <div id="username-status"></div>
+
+    <label for="photo">Profile Photo (leave empty to keep current):</label>
+    <input type="file" id="photo" accept="image/*" />
+    <img id="photo-preview" src="" alt="Current Photo Preview" />
+
+    <input type="text" id="locationInput" placeholder="Type or auto-detected address" required />
+    <input type="hidden" id="latitude" />
+    <input type="hidden" id="longitude" />
+
+    <button id="save-btn">Save Changes</button>
+    <div class="error" id="error-message"></div>
+    <div class="success" id="success-message"></div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, getDoc, query, collection, where, getDocs } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+    import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-storage.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAZK9TwSJAh2zrp7LxkUHfQur0pBsrnCfk",
+      authDomain: "ooiy-in.firebaseapp.com",
+      projectId: "ooiy-in",
+      storageBucket: "ooiy-in.firebasestorage.app",
+      messagingSenderId: "782642713796",
+      appId: "1:782642713796:web:821e8bc94d116db26d6591",
+      measurementId: "G-QHMLZ4WH73"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const storage = getStorage(app);
+
+    const nameInput = document.getElementById('name'),
+          usernameInput = document.getElementById('username'),
+          photoInput = document.getElementById('photo'),
+          photoPreview = document.getElementById('photo-preview'),
+          locationInput = document.getElementById('locationInput'),
+          latInput = document.getElementById('latitude'),
+          lngInput = document.getElementById('longitude'),
+          saveBtn = document.getElementById('save-btn'),
+          errMsg = document.getElementById('error-message'),
+          successMsg = document.getElementById('success-message'),
+          userStatus = document.getElementById('username-status');
+
+    let currentUser = null;
+    let currentUsername = "";
+    let autocomplete;
+
+    function initAutocomplete() {
+      autocomplete = new google.maps.places.Autocomplete(locationInput, { types: ['geocode'] });
+      autocomplete.addListener('place_changed', () => {
+        const place = autocomplete.getPlace();
+        if (!place.geometry) return;
+        latInput.value = place.geometry.location.lat();
+        lngInput.value = place.geometry.location.lng();
+      });
+    }
+
+    function autoDetectLocation() {
+      if (!navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition(async pos => {
+        const { latitude, longitude } = pos.coords;
+        latInput.value = latitude;
+        lngInput.value = longitude;
+        try {
+          const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+          const data = await resp.json();
+          const a = data.address;
+          locationInput.value = [a.city||a.town||a.village||a.suburb, a.state, a.country].filter(Boolean).join(', ');
+        } catch(e) {
+          console.warn("Reverse geocode failed", e);
+        }
+      }, e => console.warn("Geo error", e), { enableHighAccuracy:true, timeout:10000 });
+    }
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        window.location.href = "login.html";
+        return;
+      }
+      currentUser = user;
+      // Load existing profile data:
+      const docRef = doc(db, "details", user.uid);
+      const docSnap = await getDoc(docRef);
+      if (!docSnap.exists()) {
+        // No profile yet, redirect to details page to create
+        window.location.href = "details.html";
+        return;
+      }
+      const data = docSnap.data();
+      nameInput.value = data.name || "";
+      usernameInput.value = data.username || "";
+      currentUsername = data.username || "";
+      photoPreview.src = data.photo || "https://via.placeholder.com/100";
+      locationInput.value = data.location || "";
+      latInput.value = data.latitude || "";
+      lngInput.value = data.longitude || "";
+    });
+
+    // Username availability check only if username changed
+    usernameInput.addEventListener('input', async () => {
+      const val = usernameInput.value.trim().toLowerCase();
+      userStatus.textContent = "";
+      if (val.length < 3) return;
+      if (val === currentUsername.toLowerCase()) {
+        userStatus.textContent = "✅ Username unchanged";
+        userStatus.style.color = "green";
+        return;
+      }
+      const q = query(collection(db, "details"), where("username", "==", val));
+      const snap = await getDocs(q);
+      userStatus.textContent = snap.empty ? "✅ Username available" : "❌ Username taken";
+      userStatus.style.color = snap.empty ? "green" : "red";
+    });
+
+    photoInput.addEventListener('change', () => {
+      if (photoInput.files && photoInput.files[0]) {
+        const file = photoInput.files[0];
+        const reader = new FileReader();
+        reader.onload = e => {
+          photoPreview.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    saveBtn.addEventListener('click', async () => {
+      errMsg.textContent = "";
+      successMsg.textContent = "";
+
+      const name = nameInput.value.trim();
+      const un = usernameInput.value.trim().toLowerCase();
+      const file = photoInput.files[0];  // may be undefined if no new photo
+      const loc = locationInput.value.trim();
+      const lat = latInput.value;
+      const lng = lngInput.value;
+
+      if (!name || !un || !loc || !lat || !lng) {
+        errMsg.textContent = "All fields (except photo if unchanged) are required.";
+        return;
+      }
+      if (un.length < 3) {
+        errMsg.textContent = "Username must be at least 3 characters.";
+        return;
+      }
+
+      // Check username availability only if changed
+      if (un !== currentUsername.toLowerCase()) {
+        const q = query(collection(db, "details"), where("username", "==", un));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          errMsg.textContent = "Username already taken.";
+          return;
+        }
+      }
+
+      let photoURL = photoPreview.src; // Default to existing photo preview URL
+
+      if (file) {
+        // Upload new photo
+        const sRef = ref(storage, `profile_photos/${currentUser.uid}`);
+        await uploadBytes(sRef, file);
+        photoURL = await getDownloadURL(sRef);
+      }
+
+      const userData = {
+        name,
+        username: un,
+        photo: photoURL,
+        location: loc,
+        latitude: parseFloat(lat),
+        longitude: parseFloat(lng)
+      };
+
+      await setDoc(doc(db, "details", currentUser.uid), userData);
+      successMsg.textContent = "Profile updated successfully!";
+
+      setTimeout(() => {
+        window.location.href = "profile.html";
+      }, 1500);
+    });
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initAutocomplete();
+      autoDetectLocation();
+    });
+  </script>
+</body>
+</html>
