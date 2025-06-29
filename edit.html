@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Edit Product</title>
 
-  <!-- Firebase SDKs -->
+  <!-- Firebase SDKs (compat mode) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
@@ -15,68 +15,17 @@
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 
   <style>
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      background: #f4f6f8;
-      padding: 1rem;
-    }
-    form {
-      max-width: 600px;
-      margin: auto;
-      background: #fff;
-      padding: 20px;
-      border-radius: 10px;
-    }
-    label {
-      display: block;
-      margin-top: 1rem;
-      font-weight: bold;
-    }
-    input, textarea, select {
-      width: 100%;
-      padding: 10px;
-      margin-top: 5px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-    }
-    .photo-preview {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 10px;
-    }
-    .photo-box {
-      position: relative;
-    }
-    .photo-box img {
-      width: 80px;
-      height: 80px;
-      object-fit: cover;
-      border-radius: 6px;
-    }
-    .photo-box button {
-      position: absolute;
-      top: -6px;
-      right: -6px;
-      background: red;
-      color: white;
-      border: none;
-      border-radius: 50%;
-      width: 20px;
-      height: 20px;
-      cursor: pointer;
-    }
-    .submit-btn {
-      margin-top: 2rem;
-      background: #007bff;
-      color: white;
-      padding: 12px;
-      border: none;
-      border-radius: 6px;
-      font-size: 16px;
-      cursor: pointer;
-      width: 100%;
-    }
+    body { font-family: 'Segoe UI', sans-serif; background: #f4f6f8; padding: 1rem; }
+    form { max-width: 600px; margin: auto; background: #fff; padding:20px; border-radius:10px; }
+    label { display: block; margin-top:1rem; font-weight:600; }
+    input, textarea { width:100%; padding:10px; margin-top:5px; border:1px solid #ccc; border-radius:6px; }
+    #map { width:100%; height:300px; margin-top:10px; border-radius:8px; }
+    .photo-preview { display:flex; flex-wrap:wrap; gap:10px; margin-top:10px; }
+    .photo-box { position:relative; }
+    .photo-box img { width:80px; height:80px; object-fit:cover; border-radius:6px; }
+    .photo-box button { position:absolute; top:-6px; right:-6px; background:red; color:white; border:none; border-radius:50%; width:20px; height:20px; cursor:pointer;}
+    .submit-btn { margin-top:2rem; background:#007bff; color:white; padding:12px; border:none; border-radius:6px; font-size:16px; cursor:pointer; width:100%; }
+    .submit-btn:hover { background:#0056b3; }
   </style>
 </head>
 <body>
@@ -99,15 +48,24 @@
   <label>Type</label>
   <input type="text" name="type" required />
 
-  <label>Location</label>
-  <input type="text" name="location" required />
+  <label>Location (address)</label>
+  <input type="text" name="location" id="locationInput" required />
 
-  <label>Product Photos (add more if needed)</label>
+  <label>Select on Map</label>
+  <div id="map"></div>
+  <input type="hidden" id="lat" name="latitude" />
+  <input type="hidden" id="lng" name="longitude" />
+
+  <label>Product Photos (max 10)</label>
   <input type="file" id="photosInput" multiple accept="image/*" />
   <div class="photo-preview" id="photoPreview"></div>
 
   <button type="submit" class="submit-btn">Save Changes</button>
 </form>
+
+<script async defer
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAWlcGVF9zF8jSKCxlECIhof1Mhe5HIfyM&libraries=places&callback=initMap">
+</script>
 
 <script>
   const firebaseConfig = {
@@ -116,14 +74,11 @@
     projectId: "ooiy-in",
     storageBucket: "ooiy-in.firebasestorage.app",
     messagingSenderId: "782642713796",
-    appId: "1:782642713796:web:821e8bc94d116db26d6591",
-    measurementId: "G-QHMLZ4WH73"
+    appId: "1:782642713796:web:821e8bc94d116db26d6591"
   };
 
   firebase.initializeApp(firebaseConfig);
-  const auth = firebase.auth();
-  const db = firebase.firestore();
-  const storage = firebase.storage();
+  const auth = firebase.auth(), db = firebase.firestore(), storage = firebase.storage();
 
   const urlParams = new URLSearchParams(window.location.search);
   const productKey = urlParams.get('key');
@@ -131,20 +86,55 @@
   const form = document.getElementById('editForm');
   const photoPreview = document.getElementById('photoPreview');
   const photosInput = document.getElementById('photosInput');
-  let existingPhotos = [];
-  let newFiles = [];
+
+  let existingPhotos = [], newFiles = [];
+  let map, marker, autocomplete;
+  let currentLatLng = { lat: 28.6139, lng: 77.2090 }; // default
+
+  function initMap() {
+    map = new google.maps.Map(document.getElementById("map"), {
+      center: currentLatLng,
+      zoom: 12,
+    });
+    marker = new google.maps.Marker({
+      position: currentLatLng,
+      map,
+      draggable: true
+    });
+    marker.addListener("dragend", () => {
+      const pos = marker.getPosition();
+      currentLatLng = { lat: pos.lat(), lng: pos.lng() };
+      updateHiddenCoordinates();
+    });
+
+    autocomplete = new google.maps.places.Autocomplete(
+      document.getElementById("locationInput"),
+      { types: ["geocode"] }
+    );
+    autocomplete.addListener("place_changed", () => {
+      const place = autocomplete.getPlace();
+      if (!place.geometry) return alert("No location details available.");
+      currentLatLng = {
+        lat: place.geometry.location.lat(),
+        lng: place.geometry.location.lng()
+      };
+      map.setCenter(currentLatLng);
+      marker.setPosition(currentLatLng);
+      updateHiddenCoordinates();
+    });
+  }
+
+  function updateHiddenCoordinates() {
+    document.getElementById('lat').value = currentLatLng.lat;
+    document.getElementById('lng').value = currentLatLng.lng;
+  }
 
   auth.onAuthStateChanged(async user => {
     if (!user || !productKey) return window.location.href = 'login.html';
-    const docRef = db.collection("details").doc(user.uid);
-    const doc = await docRef.get();
+    const doc = await db.collection("details").doc(user.uid).get();
+    const product = doc.data()[productKey] || null;
+    if (!product) return window.location.href = 'myprod.html';
 
-    if (!doc.exists) return alert("Product not found");
-
-    const product = doc.data()[productKey];
-    if (!product) return alert("Product not found");
-
-    // Fill form
     form.productName.value = product.name || '';
     form.description.value = product.description || '';
     form.price.value = product.price || '';
@@ -152,113 +142,117 @@
     form.type.value = product.type || '';
     form.location.value = product.location || '';
     existingPhotos = product.photos || [];
+    if (product.latitude && product.longitude) {
+      currentLatLng = { lat: product.latitude, lng: product.longitude };
+    }
 
+    if (map && marker) {
+      map.setCenter(currentLatLng);
+      marker.setPosition(currentLatLng);
+    }
+    updateHiddenCoordinates();
     renderPhotoPreview();
   });
 
   function renderPhotoPreview() {
     photoPreview.innerHTML = '';
-    existingPhotos.forEach((url, index) => {
-      const box = document.createElement('div');
-      box.className = 'photo-box';
-      box.setAttribute('data-index', index);
-      box.innerHTML = `
+    existingPhotos.forEach((url,i) => {
+      const div = document.createElement('div');
+      div.className='photo-box'; div.dataset.index=i;
+      div.innerHTML=`
         <img src="${url}" />
-        <button onclick="removeExistingPhoto(${index})">&times;</button>`;
-      photoPreview.appendChild(box);
+        <button type="button" onclick="removeExisting(${i})">&times;</button>
+      `;
+      photoPreview.appendChild(div);
     });
-
     newFiles.forEach(file => {
       const reader = new FileReader();
-      reader.onload = function (e) {
-        const box = document.createElement('div');
-        box.className = 'photo-box';
-        box.setAttribute('data-name', file.name);
-        box.innerHTML = `<img src="${e.target.result}" />
-                         <button onclick="removeNewFile('${file.name}')">&times;</button>`;
-        photoPreview.appendChild(box);
-      }
+      reader.onload=e=> {
+        const div = document.createElement('div');
+        div.className='photo-box'; div.dataset.name=file.name;
+        div.innerHTML=`
+          <img src="${e.target.result}" />
+          <button type="button" onclick="removeNew('${file.name}')">&times;</button>
+        `;
+        photoPreview.appendChild(div);
+      };
       reader.readAsDataURL(file);
     });
   }
 
-  function removeExistingPhoto(index) {
-    existingPhotos.splice(index, 1);
+  function removeExisting(i){
+    existingPhotos.splice(i,1);
     renderPhotoPreview();
   }
-
-  function removeNewFile(name) {
-    newFiles = newFiles.filter(f => f.name !== name);
+  function removeNew(name){
+    newFiles=newFiles.filter(f=>f.name!==name);
     renderPhotoPreview();
   }
-
-  photosInput.addEventListener('change', e => {
-    const files = Array.from(e.target.files);
-    if ((existingPhotos.length + newFiles.length + files.length) > 10) {
-      alert("Maximum 10 photos allowed.");
-      return;
+  photosInput.addEventListener('change', e=>{
+    const files=Array.from(e.target.files);
+    if(existingPhotos.length+newFiles.length+files.length>10){
+      return alert("Max 10 photos");
     }
     newFiles.push(...files);
     renderPhotoPreview();
-    photosInput.value = "";
+    photosInput.value='';
   });
 
-  new Sortable(photoPreview, {
-    animation: 150,
-    onEnd: () => {
-      const orderedChildren = [...photoPreview.children];
-      const newOrder = [];
-      orderedChildren.forEach(child => {
-        const index = child.getAttribute('data-index');
-        const name = child.getAttribute('data-name');
-        if (index !== null) {
-          newOrder.push(existingPhotos[parseInt(index)]);
-        } else if (name) {
-          const file = newFiles.find(f => f.name === name);
-          if (file) newOrder.push(file);
-        }
-      });
-      existingPhotos = newOrder.filter(item => typeof item === 'string');
-      newFiles = newOrder.filter(item => typeof item !== 'string');
-      renderPhotoPreview();
-    }
-  });
+  new Sortable(photoPreview,{animation:150,onEnd:()=>{
+    const items=Array.from(photoPreview.children);
+    const ex=[], nw=[];
+    items.forEach(el=>{
+      if(el.dataset.index!=null) ex.push(existingPhotos[+el.dataset.index]);
+      else if(el.dataset.name){
+        const f=newFiles.find(x=>x.name===el.dataset.name);
+        if(f) nw.push(f);
+      }
+    });
+    existingPhotos = ex;
+    newFiles=nw;
+    renderPhotoPreview();
+  }});
 
-  form.addEventListener('submit', async e => {
+  form.addEventListener('submit', async e=>{
     e.preventDefault();
     const user = auth.currentUser;
-    if (!user || !productKey) return;
+    if(!user||!productKey) return;
 
-    const name = form.productName.value;
-    const description = form.description.value;
-    const price = parseFloat(form.price.value);
-    const category = form.category.value;
-    const type = form.type.value;
-    const location = form.location.value;
+    const name=form.productName.value.trim();
+    const desc=form.description.value.trim();
+    const price=parseFloat(form.price.value);
+    const category=form.category.value.trim();
+    const type=form.type.value.trim();
+    const location=form.location.value.trim();
 
-    const uploadedPhotoURLs = [...existingPhotos];
-
-    for (const file of newFiles) {
-      const ref = storage.ref(`products/${user.uid}/${Date.now()}_${file.name}`);
-      await ref.put(file);
-      const url = await ref.getDownloadURL();
-      uploadedPhotoURLs.push(url);
+    if(!name||!desc||!price||!category||!type||!location){
+      return alert("Fill all fields");
     }
 
-    const updatedData = {
-      name, description, price, category, type, location,
-      photos: uploadedPhotoURLs,
+    const uploadedUrls = [];
+    for(const f of newFiles){
+      const ref = storage.ref(`products/${user.uid}/${Date.now()}_${f.name}`);
+      const snap = await ref.put(f);
+      uploadedUrls.push(await snap.ref.getDownloadURL());
+    }
+    const finalPhotos = [...existingPhotos, ...uploadedUrls].slice(0,10);
+
+    const payload = {
+      name, description: desc, price,
+      category, type, location,
+      latitude: currentLatLng.lat,
+      longitude: currentLatLng.lng,
+      photos: finalPhotos,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
 
     await db.collection("details").doc(user.uid).update({
-      [productKey]: updatedData
+      [productKey]: payload
     });
 
     alert("Product updated!");
-    window.location.href = "myprod.html";
+    window.location.href = 'myprod.html';
   });
 </script>
-
 </body>
 </html>
