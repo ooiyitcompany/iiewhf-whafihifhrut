@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -184,7 +185,7 @@
   <!-- Side Menu -->
   <div id="sideMenu" class="side-menu">
   <a href="index.html"><i class="fa-solid fa-house" style="color:#007bff;"></i> Home</a>
-  <a href="premium.html"><i class="fa-solid fa-star" style="color:#f39c12;"></i> Ads Premium</a>
+  <a href="myprod.html"><i class="fa-solid fa-star" style="color:#f39c12;"></i> Premium</a>
   <a href="upload.html"><i class="fa-solid fa-upload" style="color:#27ae60;"></i> Upload</a>
   <a href="inbox.html"><i class="fa-solid fa-envelope" style="color:#e74c3c;"></i> Inbox</a>
   <a href="cart.html"><i class="fa-solid fa-cart-shopping" style="color:#9b59b6;"></i> My Cart</a>
@@ -227,79 +228,137 @@
   </nav>
 
   <!-- Firebase Init & Product Fetch -->
-  <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyAZK9TwSJAh2zrp7LxkUHfQur0pBsrnCfk",
-      authDomain: "ooiy-in.firebaseapp.com",
-      projectId: "ooiy-in",
-      storageBucket: "ooiy-in.firebasestorage.app",
-      messagingSenderId: "782642713796",
-      appId: "1:782642713796:web:821e8bc94d116db26d6591"
-    };
+  <script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+  import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+  import { getFirestore, collection, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
+  const firebaseConfig = {
+    apiKey: "AIzaSyAZK9TwSJAh2zrp7LxkUHfQur0pBsrnCfk",
+    authDomain: "ooiy-in.firebaseapp.com",
+    projectId: "ooiy-in",
+    storageBucket: "ooiy-in.firebasestorage.app",
+    messagingSenderId: "782642713796",
+    appId: "1:782642713796:web:821e8bc94d116db26d6591"
+  };
 
-    const productList = document.getElementById('productList');
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
 
-    async function loadProducts() {
-      const snapshot = await db.collection('details').get();
-      const allProducts = [];
+  const productList = document.getElementById('productList');
 
-      snapshot.forEach(doc => {
-        const userId = doc.id;
-        const data = doc.data();
+  function haversine(lat1, lon1, lat2, lon2) {
+    const toRad = deg => deg * Math.PI / 180;
+    const R = 6371; // km
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) ** 2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
 
-        Object.entries(data).forEach(([key, value]) => {
-          if (key.startsWith('product') && value.name) {
-            allProducts.push({
-              ...value,
-              userId,
-              key
-            });
-          }
-        });
-      });
+  async function loadProducts(userLat, userLng) {
+    productList.innerHTML = "Loading products...";
 
-      allProducts.sort((a, b) => {
-        const aTime = a.createdAt?.seconds || 0;
-        const bTime = b.createdAt?.seconds || 0;
-        return bTime - aTime;
-      });
+    const snapshot = await getDocs(collection(db, 'details'));
+    const allProducts = [];
 
-      allProducts.forEach(productData => {
-        const product = document.createElement('div');
-        product.className = 'product';
+    snapshot.forEach(docSnap => {
+      const data = docSnap.data();
+      const userId = docSnap.id;
 
-        const photoUrl = (productData.photos && productData.photos.length > 0)
-          ? productData.photos[0]
-          : 'https://via.placeholder.com/300x200?text=No+Image';
+      // Go through keys to find product entries
+      for (const [key, value] of Object.entries(data)) {
+        if (
+          key.startsWith('product') &&
+          value.name &&
+          typeof value.latitude === 'number' &&
+          typeof value.longitude === 'number'
+        ) {
+          const distance = haversine(userLat, userLng, value.latitude, value.longitude);
+          allProducts.push({
+            ...value,
+            userId,
+            key,
+            distance
+          });
+        }
+      }
+    });
 
-        product.innerHTML = `
-          <img src="${photoUrl}" alt="${productData.name}">
-          <div class="product-details">
-            <h3>${productData.name}</h3>
-            <p>₹${productData.price}</p>
-          </div>
-        `;
-
-        product.onclick = () => {
-          window.location.href = `view.html?user=${productData.userId}&key=${productData.key}`;
-        };
-
-        productList.appendChild(product);
-      });
+    if (allProducts.length === 0) {
+      productList.innerHTML = "<p>No products found.</p>";
+      return;
     }
 
-    loadProducts();
+    // Sort by distance ascending
+    allProducts.sort((a, b) => a.distance - b.distance);
 
-    function toggleMenu() {
-      const menu = document.getElementById('sideMenu');
-      const overlay = document.getElementById('overlay');
-      menu.classList.toggle('open');
-      overlay.classList.toggle('show');
+    productList.innerHTML = ""; // Clear loading
+
+    allProducts.forEach(productData => {
+      const product = document.createElement('div');
+      product.className = 'product';
+
+      const photoUrl = (productData.photos && productData.photos.length > 0)
+        ? productData.photos[0]
+        : 'https://via.placeholder.com/300x200?text=No+Image';
+
+      product.innerHTML = `
+        <img src="${photoUrl}" alt="${productData.name}">
+        <div class="product-details">
+          <h3>${productData.name}</h3>
+          <p>₹${productData.price} <br><small>${productData.distance.toFixed(1)} km away</small></p>
+        </div>
+      `;
+
+      product.onclick = () => {
+        window.location.href = `view.html?user=${productData.userId}&key=${productData.key}`;
+      };
+
+      productList.appendChild(product);
+    });
+  }
+
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+      alert("Please login first.");
+      window.location.href = "login.html";
+      return;
     }
-  </script>
+
+    // Get current user location from Firestore
+    const userDocRef = doc(db, "details", user.uid);
+    const userDocSnap = await getDoc(userDocRef);
+
+    if (!userDocSnap.exists()) {
+      alert("Please complete your profile with location first.");
+      window.location.href = "details.html";
+      return;
+    }
+
+    const userData = userDocSnap.data();
+
+    if (typeof userData.latitude !== 'number' || typeof userData.longitude !== 'number') {
+      alert("Your profile location is missing. Please update it.");
+      window.location.href = "details.html";
+      return;
+    }
+
+    // Load products with user location
+    loadProducts(userData.latitude, userData.longitude);
+  });
+
+  // Optional menu toggle
+  window.toggleMenu = function () {
+    document.getElementById('sideMenu').classList.toggle('open');
+    document.getElementById('overlay').classList.toggle('show');
+  };
+</script>
 
 </body>
 </html>
+
