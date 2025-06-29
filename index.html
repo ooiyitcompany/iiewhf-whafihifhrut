@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -185,7 +184,7 @@
   <!-- Side Menu -->
   <div id="sideMenu" class="side-menu">
   <a href="index.html"><i class="fa-solid fa-house" style="color:#007bff;"></i> Home</a>
-  <a href="premium.html"><i class="fa-solid fa-star" style="color:#f39c12;"></i> Premium</a>
+  <a href="myprod.html"><i class="fa-solid fa-star" style="color:#f39c12;"></i> Premium</a>
   <a href="upload.html"><i class="fa-solid fa-upload" style="color:#27ae60;"></i> Upload</a>
   <a href="inbox.html"><i class="fa-solid fa-envelope" style="color:#e74c3c;"></i> Inbox</a>
   <a href="cart.html"><i class="fa-solid fa-cart-shopping" style="color:#9b59b6;"></i> My Cart</a>
@@ -228,7 +227,7 @@
   </nav>
 
   <!-- Firebase Init & Product Fetch -->
-  <script type="module">
+ <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
   import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
   import { getFirestore, collection, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
@@ -270,7 +269,6 @@
       const data = docSnap.data();
       const userId = docSnap.id;
 
-      // Go through keys to find product entries
       for (const [key, value] of Object.entries(data)) {
         if (
           key.startsWith('product') &&
@@ -294,10 +292,8 @@
       return;
     }
 
-    // Sort by distance ascending
     allProducts.sort((a, b) => a.distance - b.distance);
-
-    productList.innerHTML = ""; // Clear loading
+    productList.innerHTML = "";
 
     allProducts.forEach(productData => {
       const product = document.createElement('div');
@@ -324,41 +320,34 @@
   }
 
   onAuthStateChanged(auth, async (user) => {
-    if (!user) {
-      alert("Please login first.");
-      window.location.href = "login.html";
-      return;
+    if (user) {
+      // Logged in: get user location from Firestore
+      const userDocRef = doc(db, "details", user.uid);
+      const userDocSnap = await getDoc(userDocRef);
+
+      if (userDocSnap.exists()) {
+        const userData = userDocSnap.data();
+        if (typeof userData.latitude === 'number' && typeof userData.longitude === 'number') {
+          loadProducts(userData.latitude, userData.longitude);
+          return;
+        }
+      }
+
+      alert("Profile location not set. Using default location.");
     }
 
-    // Get current user location from Firestore
-    const userDocRef = doc(db, "details", user.uid);
-    const userDocSnap = await getDoc(userDocRef);
-
-    if (!userDocSnap.exists()) {
-      alert("Please complete your profile with location first.");
-      window.location.href = "details.html";
-      return;
-    }
-
-    const userData = userDocSnap.data();
-
-    if (typeof userData.latitude !== 'number' || typeof userData.longitude !== 'number') {
-      alert("Your profile location is missing. Please update it.");
-      window.location.href = "details.html";
-      return;
-    }
-
-    // Load products with user location
-    loadProducts(userData.latitude, userData.longitude);
+    // Not logged in or no location: use default guest location
+    const defaultLat = 28.6139; // New Delhi
+    const defaultLng = 77.2090;
+    loadProducts(defaultLat, defaultLng);
   });
 
-  // Optional menu toggle
   window.toggleMenu = function () {
     document.getElementById('sideMenu').classList.toggle('open');
     document.getElementById('overlay').classList.toggle('show');
   };
 </script>
 
+
 </body>
 </html>
-
