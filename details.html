@@ -39,125 +39,160 @@
   </div>
 
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
-    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, getDocs, collection, query, where } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
-    import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-storage.js";
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+  import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+  import { getFirestore, doc, setDoc, getDocs, collection, query, where } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+  import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-storage.js";
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyAZK9TwSJAh2zrp7LxkUHfQur0pBsrnCfk",
-      authDomain: "ooiy-in.firebaseapp.com",
-      projectId: "ooiy-in",
-      storageBucket: "ooiy-in.firebasestorage.app",
-      messagingSenderId: "782642713796",
-      appId: "1:782642713796:web:821e8bc94d116db26d6591",
-      measurementId: "G-QHMLZ4WH73"
-    };
+  const firebaseConfig = {
+    apiKey: "AIzaSyAZK9TwSJAh2zrp7LxkUHfQur0pBsrnCfk",
+    authDomain: "ooiy-in.firebaseapp.com",
+    projectId: "ooiy-in",
+    storageBucket: "ooiy-in.firebasestorage.app",
+    messagingSenderId: "782642713796",
+    appId: "1:782642713796:web:821e8bc94d116db26d6591",
+    measurementId: "G-QHMLZ4WH73"
+  };
 
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-    const storage = getStorage(app);
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  const storage = getStorage(app);
 
-    const nameInput = document.getElementById('name'),
-          usernameInput = document.getElementById('username'),
-          photoInput = document.getElementById('photo'),
-          locationInput = document.getElementById('locationInput'),
-          latInput = document.getElementById('latitude'),
-          lngInput = document.getElementById('longitude'),
-          saveBtn = document.getElementById('save-btn'),
-          errMsg = document.getElementById('error-message'),
-          successMsg = document.getElementById('success-message'),
-          userStatus = document.getElementById('username-status');
+  const nameInput = document.getElementById('name'),
+        usernameInput = document.getElementById('username'),
+        photoInput = document.getElementById('photo'),
+        locationInput = document.getElementById('locationInput'),
+        latInput = document.getElementById('latitude'),
+        lngInput = document.getElementById('longitude'),
+        saveBtn = document.getElementById('save-btn'),
+        errMsg = document.getElementById('error-message'),
+        successMsg = document.getElementById('success-message'),
+        userStatus = document.getElementById('username-status');
 
-    let currentUser = null;
-    let autocomplete;
+  let currentUser = null;
+  let autocomplete;
 
-    function initAutocomplete() {
-      autocomplete = new google.maps.places.Autocomplete(locationInput, { types: ['geocode'] });
-      autocomplete.addListener('place_changed', () => {
-        const place = autocomplete.getPlace();
-        if (!place.geometry) return;
-        latInput.value = place.geometry.location.lat();
-        lngInput.value = place.geometry.location.lng();
-      });
+  function initAutocomplete() {
+    autocomplete = new google.maps.places.Autocomplete(locationInput, { types: ['geocode'] });
+    autocomplete.addListener('place_changed', () => {
+      const place = autocomplete.getPlace();
+      if (!place.geometry) return;
+      latInput.value = place.geometry.location.lat();
+      lngInput.value = place.geometry.location.lng();
+    });
+  }
+
+  function autoDetectLocation() {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(async pos => {
+      const { latitude, longitude } = pos.coords;
+      latInput.value = latitude;
+      lngInput.value = longitude;
+      try {
+        const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+        const data = await resp.json();
+        const a = data.address;
+        locationInput.value = [a.city || a.town || a.village || a.suburb, a.state, a.country].filter(Boolean).join(', ');
+      } catch (e) {
+        console.warn("Reverse geocode failed", e);
+      }
+    }, e => console.warn("Geo error", e), { enableHighAccuracy: true, timeout: 10000 });
+  }
+
+  usernameInput.addEventListener('input', async () => {
+    const val = usernameInput.value.trim().toLowerCase();
+    userStatus.textContent = "";
+    if (val.length < 3) return;
+    const q = query(collection(db, "details"), where("username", "==", val));
+    const snap = await getDocs(q);
+    userStatus.textContent = snap.empty ? "✅ Username available" : "❌ Username taken";
+    userStatus.style.color = snap.empty ? "green" : "red";
+  });
+
+  onAuthStateChanged(auth, u => {
+    if (!u) window.location.href = "login.html";
+    currentUser = u;
+  });
+
+  saveBtn.addEventListener('click', async () => {
+    errMsg.textContent = "";
+    successMsg.textContent = "";
+
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Saving...";
+    saveBtn.style.opacity = "0.6";
+    saveBtn.style.pointerEvents = "none";
+
+    const name = nameInput.value.trim();
+    const un = usernameInput.value.trim().toLowerCase();
+    const file = photoInput.files[0];
+    const loc = locationInput.value.trim();
+    const lat = latInput.value;
+    const lng = lngInput.value;
+
+    if (!name || !un || !file || !loc || !lat || !lng) {
+      errMsg.textContent = "All fields (including location) are required.";
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Save Profile";
+      saveBtn.style.opacity = "1";
+      saveBtn.style.pointerEvents = "auto";
+      return;
     }
 
-    function autoDetectLocation() {
-      if (!navigator.geolocation) return;
-      navigator.geolocation.getCurrentPosition(async pos => {
-        const { latitude, longitude } = pos.coords;
-        latInput.value = latitude;
-        lngInput.value = longitude;
-        try {
-          const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
-          const data = await resp.json();
-          const a = data.address;
-          locationInput.value = [a.city||a.town||a.village||a.suburb, a.state, a.country].filter(Boolean).join(', ');
-        } catch(e) {
-          console.warn("Reverse geocode failed", e);
-        }
-      }, e => console.warn("Geo error", e), { enableHighAccuracy:true, timeout:10000 });
+    if (un.length < 3) {
+      errMsg.textContent = "Username must be at least 3 characters.";
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Save Profile";
+      saveBtn.style.opacity = "1";
+      saveBtn.style.pointerEvents = "auto";
+      return;
     }
 
-    usernameInput.addEventListener('input', async () => {
-      const val = usernameInput.value.trim().toLowerCase();
-      userStatus.textContent = "";
-      if (val.length < 3) return;
-      const q = query(collection(db, "details"), where("username", "==", val));
-      const snap = await getDocs(q);
-      userStatus.textContent = snap.empty ? "✅ Username available" : "❌ Username taken";
-      userStatus.style.color = snap.empty ? "green" : "red";
-    });
+    const q = query(collection(db, "details"), where("username", "==", un));
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      errMsg.textContent = "Username already taken.";
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Save Profile";
+      saveBtn.style.opacity = "1";
+      saveBtn.style.pointerEvents = "auto";
+      return;
+    }
 
-    onAuthStateChanged(auth, u => {
-      if (!u) window.location.href = "login.html";
-      currentUser = u;
-    });
-
-    saveBtn.addEventListener('click', async () => {
-      errMsg.textContent = "";
-      successMsg.textContent = "";
-      const name = nameInput.value.trim();
-      const un = usernameInput.value.trim().toLowerCase();
-      const file = photoInput.files[0];
-      const loc = locationInput.value.trim();
-      const lat = latInput.value;
-      const lng = lngInput.value;
-
-      if (!name || !un || !file || !loc || !lat || !lng) {
-        errMsg.textContent = "All fields (including location) are required.";
-        return;
-      }
-      if (un.length < 3) {
-        errMsg.textContent = "Username must be at least 3 characters.";
-        return;
-      }
-      const q = query(collection(db, "details"), where("username", "==", un));
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        errMsg.textContent = "Username already taken.";
-        return;
-      }
-
+    try {
       const sRef = ref(storage, `profile_photos/${currentUser.uid}`);
       await uploadBytes(sRef, file);
       const photoURL = await getDownloadURL(sRef);
 
       const userData = {
-        name, username: un, photo: photoURL,
-        location: loc, latitude: parseFloat(lat), longitude: parseFloat(lng)
+        name,
+        username: un,
+        photo: photoURL,
+        location: loc,
+        latitude: parseFloat(lat),
+        longitude: parseFloat(lng)
       };
 
       await setDoc(doc(db, "details", currentUser.uid), userData);
       successMsg.textContent = "Profile saved!";
-      setTimeout(() => window.location.href = "profile.html", 1500);
-    });
+      saveBtn.style.display = "none";
+      setTimeout(() => window.location.href = "profile.html", 1200);
+    } catch (e) {
+      console.error(e);
+      errMsg.textContent = "Failed to save profile. Try again.";
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Save Profile";
+      saveBtn.style.opacity = "1";
+      saveBtn.style.pointerEvents = "auto";
+    }
+  });
 
-    window.addEventListener('DOMContentLoaded', () => {
-      initAutocomplete();
-      autoDetectLocation();
-    });
-  </script>
+  window.addEventListener('DOMContentLoaded', () => {
+    initAutocomplete();
+    autoDetectLocation();
+  });
+</script>
+
 </body>
 </html>
