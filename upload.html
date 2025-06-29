@@ -269,18 +269,17 @@
 </form>
 
 <script>
-  // Country code ↔ symbol map
+  // Currency map and setter
   const currencyMap = {
     "IN": "₹", "US": "$", "CA": "$", "GB": "£", "EU": "€", "JP": "¥", "AU": "$",
     "CN": "¥", "RU": "₽", "BR": "R$", "MX": "$", "ZA": "R", "SG": "S$", "MY": "RM",
     "ID": "Rp", "PK": "₨", "BD": "৳"
   };
-  function setCurrencySymbol(countryCode) {
-    const symbol = currencyMap[countryCode] || "$";
-    document.getElementById('currencySymbol').textContent = symbol;
+  function setCurrencySymbol(code) {
+    document.getElementById('currencySymbol').textContent = currencyMap[code] || "$";
   }
 
-  // Firebase init
+  // Firebase Init
   firebase.initializeApp({
     apiKey: "AIzaSyAZK9TwSJAh2zrp7LxkUHfQur0pBsrnCfk",
     authDomain: "ooiy-in.firebaseapp.com",
@@ -292,31 +291,31 @@
   });
   const auth = firebase.auth(), db = firebase.firestore(), storage = firebase.storage();
 
-  // Photo preview
+  // Photo Preview
   const photosInput = document.getElementById('photosInput'), photoPreview = document.getElementById('photoPreview');
   let selectedPhotos = [];
   photosInput.addEventListener('change', e => {
     const files = Array.from(e.target.files);
-    if (selectedPhotos.length + files.length > 10) return alert("Max 10 photos.");
-    files.forEach(f => {
-      selectedPhotos.push(f);
-      const r = new FileReader();
-      r.onload = ev => {
-        const box = document.createElement('div');
-        box.className = 'photo-box';
-        box.dataset.name = f.name;
-        box.innerHTML = `<img src="${ev.target.result}"/><button onclick="removePhoto('${f.name}')">&times;</button>`;
-        photoPreview.appendChild(box);
+    if (selectedPhotos.length + files.length > 10) return alert("Max 10 photos allowed.");
+    files.forEach(file => {
+      selectedPhotos.push(file);
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const div = document.createElement('div');
+        div.className = 'photo-box';
+        div.dataset.name = file.name;
+        div.innerHTML = `<img src="${ev.target.result}"/><button onclick="removePhoto('${file.name}')">&times;</button>`;
+        photoPreview.appendChild(div);
       };
-      r.readAsDataURL(f);
+      reader.readAsDataURL(file);
     });
     photosInput.value = '';
   });
   window.removePhoto = name => {
-    selectedPhotos = selectedPhotos.filter(a => a.name !== name);
-    Array.from(photoPreview.children)
-      .filter(c => c.dataset.name === name)
-      .forEach(c => c.remove());
+    selectedPhotos = selectedPhotos.filter(f => f.name !== name);
+    [...photoPreview.children].forEach(c => {
+      if (c.dataset.name === name) c.remove();
+    });
   };
   new Sortable(photoPreview, {
     animation: 150,
@@ -326,21 +325,19 @@
     }
   });
 
-  // Places autocomplete
+  // Google Places Autocomplete
   let autocomplete;
   function initAutocomplete() {
-    autocomplete = new google.maps.places.Autocomplete(document.getElementById('locationInput'), {
-      types: ['geocode'], componentRestrictions: {}
-    });
-    autocomplete.addListener('place_changed', function() {
-      const p = autocomplete.getPlace();
-      if (!p.geometry) return alert("No location details found.");
-      document.getElementById('lat').value = p.geometry.location.lat();
-      document.getElementById('lng').value = p.geometry.location.lng();
+    autocomplete = new google.maps.places.Autocomplete(document.getElementById('locationInput'), { types: ['geocode'] });
+    autocomplete.addListener('place_changed', () => {
+      const place = autocomplete.getPlace();
+      if (!place.geometry) return alert("Select a valid location.");
+      document.getElementById('lat').value = place.geometry.location.lat();
+      document.getElementById('lng').value = place.geometry.location.lng();
     });
   }
 
-  // Auto geo + currency
+  // Auto-fill location and currency
   function setLocationAutomatically() {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(async pos => {
@@ -351,45 +348,53 @@
         const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
         const d = await r.json();
         const a = d.address;
-        document.getElementById('locationInput').value =
-          [a.city||a.town||a.village||a.suburb, a.state, a.country].filter(Boolean).join(', ');
-        if (d.address.country_code) {
-          setCurrencySymbol(d.address.country_code.toUpperCase());
-        }
-      } catch(e) {
-        console.warn('reverse geocode err', e);
+        document.getElementById('locationInput').value = [a.city || a.town || a.village || a.suburb, a.state, a.country].filter(Boolean).join(', ');
+        if (a.country_code) setCurrencySymbol(a.country_code.toUpperCase());
+      } catch (err) {
+        console.warn("Location fetch failed", err);
       }
-    }, e => console.warn('geo err', e), { enableHighAccuracy: true, timeout:10000 });
+    }, err => console.warn("Geo error", err), { enableHighAccuracy: true, timeout: 10000 });
   }
 
-  // Form submit with disable/enable button to prevent multiple taps
+  // Upload logic
   document.getElementById('uploadForm').addEventListener('submit', async e => {
     e.preventDefault();
-
-    const submitBtn = e.target.querySelector('.submit-btn');
-    submitBtn.disabled = true;
-    submitBtn.textContent = "Uploading...";
+    const btn = e.target.querySelector('.submit-btn');
+    btn.disabled = true;
+    btn.textContent = "Uploading...";
 
     const u = auth.currentUser;
     if (!u) {
-      alert("Please log in.");
-      submitBtn.disabled = false;
-      submitBtn.textContent = "Upload Product";
+      alert("Please log in first.");
+      btn.disabled = false;
+      btn.textContent = "Upload Product";
       return;
     }
 
     const f = e.target;
     try {
-      const data = {
-        name: f.productName.value,
-        description: f.description.value,
-        price: parseFloat(f.price.value),
-        currency: document.getElementById('currencySymbol').textContent,
-        category: f.category.value,
-        type: f.type.value,
-        location: f.location.value,
-        latitude: parseFloat(f.latitude.value),
-        longitude: parseFloat(f.longitude.value),
+      const name = f.productName.value.trim();
+      const desc = f.description.value.trim();
+      const price = parseFloat(f.price.value);
+      const currency = document.getElementById('currencySymbol').textContent;
+      const category = f.category.value;
+      const type = f.type.value.trim();
+      const location = f.location.value.trim();
+      const lat = parseFloat(f.latitude.value);
+      const lng = parseFloat(f.longitude.value);
+
+      if (!name || !desc || isNaN(price) || !category || !type || !location || isNaN(lat) || isNaN(lng)) {
+        alert("All fields must be filled.");
+        throw new Error("Missing fields");
+      }
+      if (selectedPhotos.length === 0) {
+        alert("Please upload at least 1 photo.");
+        throw new Error("No photo");
+      }
+
+      const product = {
+        name, description: desc, price, currency, category, type,
+        location, latitude: lat, longitude: lng,
         photos: [],
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       };
@@ -397,40 +402,42 @@
       for (let img of selectedPhotos) {
         const ref = storage.ref(`products/${u.uid}/${Date.now()}_${img.name}`);
         await ref.put(img);
-        data.photos.push(await ref.getDownloadURL());
+        product.photos.push(await ref.getDownloadURL());
       }
 
-      const uref = db.collection("details").doc(u.uid);
-      const d = await uref.get();
-      if (!d.exists) {
-        alert("Complete your profile first.");
+      const userDocRef = db.collection("details").doc(u.uid);
+      const userDoc = await userDocRef.get();
+      if (!userDoc.exists) {
+        alert("Please complete your profile first.");
         location.href = "details.html";
         return;
       }
 
-      const count = Object.keys(d.data()).filter(k => k.startsWith('product')).length;
-      await uref.update({ [`product${count}`]: data });
+      const userData = userDoc.data();
+      let productIndex = 0;
+      while (userData[`product${productIndex}`]) productIndex++;
 
-      alert("Uploaded successfully!");
+      await userDocRef.update({ [`product${productIndex}`]: product });
+
+      alert("Product uploaded successfully!");
       f.reset();
       photoPreview.innerHTML = "";
       selectedPhotos = [];
-
-    } catch (error) {
-      console.error(error);
-      alert("Upload failed. Please try again.");
+    } catch (err) {
+      console.error(err);
+      alert("Upload failed. Please check all fields.");
     } finally {
-      submitBtn.disabled = false;
-      submitBtn.textContent = "Upload Product";
+      btn.disabled = false;
+      btn.textContent = "Upload Product";
     }
   });
 
-  // On load
   window.onload = () => {
     initAutocomplete();
     setLocationAutomatically();
   };
 </script>
+
 
 </body>
 </html>
