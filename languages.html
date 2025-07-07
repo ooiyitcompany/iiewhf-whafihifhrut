@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Select Language</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      padding: 40px 20px;
+    }
+    #searchBar {
+      padding: 10px;
+      width: 90%;
+      max-width: 400px;
+      font-size: 16px;
+      margin-bottom: 15px;
+    }
+    #langSelect {
+      width: 90%;
+      max-width: 400px;
+      padding: 10px;
+      font-size: 16px;
+    }
+    button {
+      margin-top: 20px;
+      padding: 12px 24px;
+      font-size: 16px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Select Your Language</h2>
+
+  <!-- 🔍 Search bar -->
+  <input type="text" id="searchBar" placeholder="Search language...">
+
+  <!-- 🌍 Language dropdown -->
+  <select id="langSelect" size="10"></select>
+
+  <!-- 🌐 Auto detect -->
+  <p style="margin-top: 10px;">
+    <a href="#" onclick="autoDetect()" style="color:#007bff;">🌐 Detect Automatically</a>
+  </p>
+
+  <button onclick="setLang()">Continue</button>
+
+  <script>
+    const languages = {
+      "af": "Afrikaans",
+      "am": "አማርኛ (Amharic)",
+      "ar": "العربية (Arabic)",
+      "az": "Azərbaycanca",
+      "be": "Беларуская",
+      "bg": "Български",
+      "bn": "বাংলা (Bengali)",
+      "bs": "Bosanski",
+      "ca": "Català",
+      "ceb": "Cebuano",
+      "cs": "Čeština",
+      "cy": "Cymraeg",
+      "da": "Dansk",
+      "de": "Deutsch",
+      "el": "Ελληνικά",
+      "en": "English",
+      "eo": "Esperanto",
+      "es": "Español",
+      "et": "Eesti",
+      "eu": "Euskara",
+      "fa": "فارسی",
+      "fi": "Suomi",
+      "fr": "Français",
+      "fy": "Frysk",
+      "ga": "Gaeilge",
+      "gd": "Gàidhlig",
+      "gl": "Galego",
+      "gu": "ગુજરાતી",
+      "ha": "Hausa",
+      "haw": "ʻŌlelo Hawaiʻi",
+      "he": "עברית",
+      "hi": "हिंदी",
+      "hmn": "Hmong",
+      "hr": "Hrvatski",
+      "ht": "Kreyòl Ayisyen",
+      "hu": "Magyar",
+      "hy": "Հայերեն",
+      "id": "Bahasa Indonesia",
+      "ig": "Igbo",
+      "is": "Íslenska",
+      "it": "Italiano",
+      "ja": "日本語",
+      "jv": "Basa Jawa",
+      "ka": "ქართული",
+      "kk": "Қазақ Тілі",
+      "km": "ភាសាខ្មែរ",
+      "kn": "ಕನ್ನಡ",
+      "ko": "한국어",
+      "ku": "Kurdî",
+      "ky": "Кыргызча",
+      "la": "Latina",
+      "lb": "Lëtzebuergesch",
+      "lo": "ລາວ",
+      "lt": "Lietuvių",
+      "lv": "Latviešu",
+      "mg": "Malagasy",
+      "mi": "Māori",
+      "mk": "Македонски",
+      "ml": "മലയാളം",
+      "mn": "Монгол",
+      "mr": "मराठी",
+      "ms": "Bahasa Melayu",
+      "mt": "Malti",
+      "my": "မြန်မာစာ",
+      "ne": "नेपाली",
+      "nl": "Nederlands",
+      "no": "Norsk",
+      "ny": "Chichewa",
+      "pa": "ਪੰਜਾਬੀ",
+      "pl": "Polski",
+      "ps": "پښتو",
+      "pt": "Português",
+      "ro": "Română",
+      "ru": "Русский",
+      "rw": "Kinyarwanda",
+      "sd": "سنڌي",
+      "si": "සිංහල",
+      "sk": "Slovenčina",
+      "sl": "Slovenščina",
+      "sm": "Gagana Sāmoa",
+      "sn": "ChiShona",
+      "so": "Soomaali",
+      "sq": "Shqip",
+      "sr": "Српски",
+      "st": "Sesotho",
+      "su": "Basa Sunda",
+      "sv": "Svenska",
+      "sw": "Kiswahili",
+      "ta": "தமிழ்",
+      "te": "తెలుగు",
+      "tg": "Тоҷикӣ",
+      "th": "ไทย",
+      "tk": "Türkmen",
+      "tl": "Tagalog",
+      "tr": "Türkçe",
+      "tt": "Татарча",
+      "ug": "ئۇيغۇرچە",
+      "uk": "Українська",
+      "ur": "اردو",
+      "uz": "Oʻzbekcha",
+      "vi": "Tiếng Việt",
+      "xh": "isiXhosa",
+      "yi": "ייִדיש",
+      "yo": "Yorùbá",
+      "zh-CN": "中文 (Simplified)",
+      "zh-TW": "中文 (Traditional)",
+      "zu": "isiZulu"
+    };
+
+    const langSelect = document.getElementById("langSelect");
+    const searchBar = document.getElementById("searchBar");
+
+    // Populate language list
+    function populateLanguages(filter = "") {
+      langSelect.innerHTML = "";
+      for (const [code, name] of Object.entries(languages)) {
+        if (name.toLowerCase().includes(filter.toLowerCase())) {
+          const opt = document.createElement("option");
+          opt.value = code;
+          opt.textContent = name;
+          langSelect.appendChild(opt);
+        }
+      }
+    }
+
+    // Auto detect browser language
+    function autoDetect() {
+      const lang = navigator.language || navigator.userLanguage || "en";
+      let shortLang = lang;
+      if (!languages[lang]) {
+        shortLang = lang.split('-')[0];
+      }
+      if (languages[shortLang]) {
+        localStorage.setItem("userLang", shortLang);
+        alert("Language auto-detected: " + languages[shortLang]);
+        window.location.href = "index.html";
+      } else {
+        alert("Language not supported. Please select manually.");
+      }
+    }
+
+    // Set selected language
+    function setLang() {
+      const selected = langSelect.value;
+      if (selected) {
+        localStorage.setItem("userLang", selected);
+        window.location.href = "index.html";
+      }
+    }
+
+    // Filter search
+    searchBar.addEventListener("input", () => {
+      const val = searchBar.value;
+      populateLanguages(val);
+    });
+
+    // Initial load
+    populateLanguages();
+  </script>
+
+</body>
+</html>
