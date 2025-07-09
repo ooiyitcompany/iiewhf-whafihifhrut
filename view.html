@@ -3,20 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>View Product </title>
-
-  <!-- Firebase & Lucide -->
+  <title>View Product</title>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
-
   <style>
     body {
       font-family: 'Segoe UI', sans-serif;
       background: #f9f9f9;
       margin: 0;
-      padding-bottom: 70px;
+      padding-bottom: 80px;
     }
 
     .container {
@@ -69,29 +66,38 @@
       border-radius: 10px;
       margin-top: 10px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      overflow: hidden;
     }
 
-    .details h1 {
-      font-size: 20px;
+    h1, .desc {
+      position: relative;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-height: 1.4;
+      cursor: pointer;
       margin-bottom: 10px;
+    }
+
+    h1.expanded, .desc.expanded {
+      -webkit-line-clamp: unset;
+      display: block;
+      white-space: normal;
     }
 
     .price {
       font-size: 22px;
       color: #007bff;
       font-weight: bold;
-      margin: 10px 0;
-    }
-
-    .desc {
-      font-size: 14px;
-      color: #555;
+      margin-bottom: 10px;
     }
 
     .btn-group {
       display: flex;
       gap: 10px;
       margin-top: 20px;
+      flex-wrap: wrap;
     }
 
     .btn {
@@ -118,7 +124,7 @@
 
 <div class="container">
   <div class="top-bar">
-    <a href="index.html"><i data-lucide="arrow-left"></i>&nbsp;Back</a>
+    <a href="index.html"><i data-lucide="arrow-left"></i>&nbsp;<span id="backText">Back</span></a>
   </div>
 
   <img id="mainPhoto" class="main-image" src="" alt="Main Product" />
@@ -130,8 +136,8 @@
     <p class="desc" id="description">Description will appear here.</p>
 
     <div class="btn-group">
-      <button class="btn" onclick="addToCart()">Add to Cart</button>
-      <button class="btn buy" onclick="goToMsg()">Buy Now</button>
+      <button class="btn" onclick="addToCart()" id="cartBtn">Add to Cart</button>
+      <button class="btn buy" onclick="goToMsg()" id="buyBtn">Buy Now</button>
     </div>
   </div>
 </div>
@@ -145,18 +151,12 @@
     projectId: "ooiy-in",
     storageBucket: "ooiy-in.firebasestorage.app",
     messagingSenderId: "782642713796",
-    appId: "1:782642713796:web:821e8bc94d116db26d6591",
-    measurementId: "G-QHMLZ4WH73"
-   
+    appId: "1:782642713796:web:821e8bc94d116db26d6591"
   };
 
   firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
   const auth = firebase.auth();
-
-  const urlParams = new URLSearchParams(window.location.search);
-  const userId = urlParams.get('user');
-  const productKey = urlParams.get('key');
 
   const mainPhoto = document.getElementById('mainPhoto');
   const photoRow = document.getElementById('photoRow');
@@ -164,7 +164,42 @@
   const priceEl = document.getElementById('price');
   const descEl = document.getElementById('description');
 
+  const userLang = localStorage.getItem("userLang") || "en";
+  const API_KEY = "AIzaSyAOhj5t7GLyok9wYFDEYhyK7FHVbn-CRhs";
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const userId = urlParams.get('user');
+  const productKey = urlParams.get('key');
+
   let currentProduct = {};
+
+  nameEl.onclick = () => nameEl.classList.toggle("expanded");
+  descEl.onclick = () => descEl.classList.toggle("expanded");
+
+  async function translateText(text, target) {
+    if (!text || target === "en") return text;
+    try {
+      const res = await fetch(
+        `https://translation.googleapis.com/language/translate/v2?key=${API_KEY}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ q: text, target: target, format: "text" })
+        }
+      );
+      const json = await res.json();
+      return json.data.translations[0].translatedText || text;
+    } catch (e) {
+      console.warn("Translation error:", e);
+      return text;
+    }
+  }
+
+  async function translateUI() {
+    document.getElementById("backText").innerText = await translateText("Back", userLang);
+    document.getElementById("cartBtn").innerText = await translateText("Add to Cart", userLang);
+    document.getElementById("buyBtn").innerText = await translateText("Buy Now", userLang);
+  }
 
   async function loadProduct() {
     if (!userId || !productKey) {
@@ -173,26 +208,21 @@
     }
 
     const doc = await db.collection('details').doc(userId).get();
-    if (!doc.exists) {
-      alert("Product not found!");
-      return;
-    }
+    const data = doc.exists ? doc.data()[productKey] : null;
 
-    const data = doc.data()[productKey];
     if (!data) {
-      alert("Product data missing.");
+      alert("Product not found.");
       return;
     }
 
     currentProduct = data;
-
     const photos = data.photos || [];
     const mainImg = photos.length > 0 ? photos[0] : 'https://via.placeholder.com/500x300?text=No+Image';
 
     mainPhoto.src = mainImg;
-    nameEl.textContent = data.name || 'No Name';
-    priceEl.textContent = '₹' + (data.price || 0);
-    descEl.textContent = data.description || 'No description available.';
+    nameEl.innerText = await translateText(data.name || 'No Name', userLang);
+    priceEl.innerText = '₹' + (data.price || 0);
+    descEl.innerText = await translateText(data.description || 'No description available.', userLang);
 
     photoRow.innerHTML = '';
     photos.forEach(photo => {
@@ -206,54 +236,43 @@
   function addToCart() {
     auth.onAuthStateChanged(async (user) => {
       if (!user) {
-        alert("You must be logged in to add items to your cart.");
-        window.location.href = "login.html";
+        alert("You must be logged in.");
+        location.href = "login.html";
         return;
       }
 
       const userRef = db.collection('details').doc(user.uid);
       const userDoc = await userRef.get();
-
-      if (!userDoc.exists) {
-        alert("User profile not found.");
-        return;
-      }
+      if (!userDoc.exists) return alert("User not found");
 
       const data = userDoc.data();
       const cartItems = Object.entries(data).filter(([k]) => k.startsWith("cart"));
+      const exists = cartItems.some(([_, item]) => item.user === userId && item.key === productKey);
+      if (exists) return alert("Already in cart.");
 
-      const alreadyExists = cartItems.some(([k, item]) => item.user === userId && item.key === productKey);
-      if (alreadyExists) {
-        alert("This product is already in your cart.");
-        return;
-      }
+      const newKey = `cart${cartItems.length}`;
+      await userRef.update({
+        [newKey]: {
+          user: userId,
+          key: productKey,
+          name: currentProduct.name,
+          price: currentProduct.price,
+          photo: currentProduct.photos?.[0] || '',
+          addedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }
+      });
 
-      const nextIndex = cartItems.length;
-      const newCartKey = `cart${nextIndex}`;
-
-      const cartItem = {
-        user: userId,
-        key: productKey,
-        name: currentProduct.name,
-        price: currentProduct.price,
-        photo: currentProduct.photos?.[0] || '',
-        addedAt: firebase.firestore.FieldValue.serverTimestamp()
-      };
-
-      await userRef.update({ [newCartKey]: cartItem });
-
-      alert("Product added to cart!");
+      alert("Added to cart!");
     });
   }
 
   function goToMsg() {
-    if (!userId || !productKey) return; // fail silently or you can alert
-    const url = `msg.html?user=${encodeURIComponent(userId)}&key=${encodeURIComponent(productKey)}`;
-    location.href = url;
+    if (!userId || !productKey) return;
+    location.href = `msg.html?user=${encodeURIComponent(userId)}&key=${encodeURIComponent(productKey)}`;
   }
 
   loadProduct();
+  translateUI();
 </script>
-
 </body>
 </html>
