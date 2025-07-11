@@ -5,46 +5,90 @@
   <title>Select Language</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body {
-      font-family: sans-serif;
-      text-align: center;
-      padding: 40px 20px;
-    }
-    #searchBar {
-      padding: 10px;
-      width: 90%;
-      max-width: 400px;
-      font-size: 16px;
-      margin-bottom: 15px;
-    }
-    #langSelect {
-      width: 90%;
-      max-width: 400px;
-      padding: 10px;
-      font-size: 16px;
-    }
-    button {
-      margin-top: 20px;
-      padding: 12px 24px;
-      font-size: 16px;
-      background-color: #007bff;
-      color: white;
-      border: none;
-      border-radius: 6px;
-    }
-  </style>
+  :root {
+    --primary-color: #007bff;
+    --input-border: #ccc;
+    --input-focus: #007bff;
+    --bg-color: #f9f9f9;
+    --text-color: #333;
+    --border-radius: 8px;
+  }
+
+  body {
+    font-family: 'Segoe UI', 'Roboto', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    text-align: center;
+    padding: 40px 20px;
+    margin: 0;
+  }
+
+  h2 {
+    margin-bottom: 24px;
+    font-size: 24px;
+  }
+
+  #searchBar,
+  #langSelect {
+    width: 90%;
+    max-width: 400px;
+    padding: 12px 16px;
+    font-size: 16px;
+    margin-bottom: 16px;
+    border: 1px solid var(--input-border);
+    border-radius: var(--border-radius);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+    transition: border 0.2s, box-shadow 0.2s;
+    outline: none;
+  }
+
+  #searchBar:focus,
+  #langSelect:focus {
+    border-color: var(--input-focus);
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+  }
+
+  #langSelect {
+    height: auto;
+    overflow-y: auto;
+  }
+
+  button {
+    margin-top: 20px;
+    padding: 12px 24px;
+    font-size: 16px;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: background-color 0.2s, box-shadow 0.2s;
+  }
+
+  button:hover {
+    background-color: #0069d9;
+    box-shadow: 0 4px 10px rgba(0, 123, 255, 0.2);
+  }
+
+  a {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-size: 14px;
+  }
+
+  a:hover {
+    text-decoration: underline;
+  }
+</style>
+
 </head>
 <body>
 
   <h2>Select Your Language</h2>
 
-  <!-- 🔍 Search bar -->
   <input type="text" id="searchBar" placeholder="Search language...">
-
-  <!-- 🌍 Language dropdown -->
   <select id="langSelect" size="10"></select>
 
-  <!-- 🌐 Auto detect -->
   <p style="margin-top: 10px;">
     <a href="#" onclick="autoDetect()" style="color:#007bff;">🌐 Detect Automatically</a>
   </p>
@@ -162,14 +206,49 @@
       "zu": "isiZulu"
     };
 
+    const languageKeywords = {
+      "en": "english anglais inglés englisch ingilizce",
+      "es": "español spanish espagnol spagnolo ispanyolca",
+      "fr": "français french fransızca",
+      "de": "deutsch german alemán allemand almanca",
+      "zh-CN": "chinese simplified 中文 汉语 普通话 mandarin",
+      "zh-TW": "chinese traditional 中文 繁體 繁體中文",
+      "hi": "hindi हिंदी हिन्दुस्तानी",
+      "ar": "arabic العربية arabi",
+      "ru": "russian русский rusça",
+      "ja": "japanese 日本語 nihongo japonca",
+      "ko": "korean 한국어 hangul korece",
+      "pt": "portuguese português portugais portekizce",
+      "bn": "bengali বাংলা bangla",
+      "it": "italian italiano italienne italyanca",
+      "tr": "turkish türkçe turco",
+      "fa": "persian farsi فارسی iranian",
+      "pl": "polish polski polonais lehçe",
+      "uk": "ukrainian українська",
+      "id": "indonesian bahasa indonesia endonezce",
+      "ms": "malay bahasa melayu malezya",
+      "vi": "vietnamese tiếng việt",
+      "th": "thai ภาษาไทย taylandca",
+      "ur": "urdu اردو",
+      "ta": "tamil தமிழ்",
+      "te": "telugu తెలుగు",
+      "ml": "malayalam മലയാളം",
+      "mr": "marathi मराठी",
+      "gu": "gujarati ગુજરાતી",
+      "pa": "punjabi ਪੰਜਾਬੀ",
+    };
+
     const langSelect = document.getElementById("langSelect");
     const searchBar = document.getElementById("searchBar");
 
-    // Populate language list
     function populateLanguages(filter = "") {
       langSelect.innerHTML = "";
+      const filterLower = filter.toLowerCase();
+
       for (const [code, name] of Object.entries(languages)) {
-        if (name.toLowerCase().includes(filter.toLowerCase())) {
+        const keywords = languageKeywords[code] || "";
+        const combined = `${name} ${keywords}`.toLowerCase();
+        if (combined.includes(filterLower)) {
           const opt = document.createElement("option");
           opt.value = code;
           opt.textContent = name;
@@ -178,7 +257,6 @@
       }
     }
 
-    // Auto detect browser language
     function autoDetect() {
       const lang = navigator.language || navigator.userLanguage || "en";
       let shortLang = lang;
@@ -194,7 +272,6 @@
       }
     }
 
-    // Set selected language
     function setLang() {
       const selected = langSelect.value;
       if (selected) {
@@ -203,13 +280,11 @@
       }
     }
 
-    // Filter search
     searchBar.addEventListener("input", () => {
       const val = searchBar.value;
       populateLanguages(val);
     });
 
-    // Initial load
     populateLanguages();
   </script>
 
