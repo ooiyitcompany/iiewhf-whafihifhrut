@@ -3,16 +3,60 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Ooiy Shop</title>
-  <link rel="shortcut icon" type="x-icon" href="ooiy.jpg">
-  <meta name="description" content="Ooiy Shop offers unique, local products near you. Discover, buy, and sell with ease. Simple, fast, and community-based shopping.">
+  <title>Ooiy – Buy & Sell, Land Deals, Nearby Services</title>
 
+  <link rel="shortcut icon" type="image/x-icon" href="ooiy.jpg">
 
-  <!-- Firebase -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <!-- ✅ SEO Meta -->
+  <meta name="description" content="Ooiy is a global marketplace to buy, sell, and discover nearby services. Find land, property, electronics, or local help — fast and secure.">
+  <meta name="keywords" content="buy sell app, local marketplace, land deals, property app, classifieds, plumber nearby, mechanic services, global marketplace, ooiy, shop, land, near me">
+  <meta name="author" content="Ooiy">
 
-  <!-- Font Awesome -->
+  <!-- ✅ Open Graph for Google / Social -->
+  <meta property="og:title" content="Ooiy – Global Marketplace & Nearby Services">
+  <meta property="og:description" content="Discover, buy, and sell locally or globally. From land to services — Ooiy connects you fast.">
+  <meta property="og:image" content="https://ooiy.in/logo.png">
+  <meta property="og:url" content="https://ooiy.in/">
+  <meta property="og:type" content="website">
+
+  <!-- ✅ App Deep Linking -->
+  <meta property="al:android:package" content="com.market.ooiy">
+  <meta property="al:android:url" content="ooiy://open">
+  <meta property="al:android:app_name" content="Ooiy">
+
+  <!-- ✅ JSON-LD Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "MobileApplication",
+    "name": "Ooiy",
+    "operatingSystem": "ANDROID",
+    "applicationCategory": "BusinessApplication",
+    "url": "https://ooiy.in/",
+    "image": "https://ooiy.in/logo.png",
+    "description": "Ooiy is a global marketplace to buy, sell, and find nearby services — fast, easy, and secure.",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "INR"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "Ooiy"
+    }
+  }
+  </script>
+
+  <!-- ✅ Preload critical assets -->
+  <link rel="preload" href="https://ooiy.in/logo.png" as="image">
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+
+  <!-- ✅ Firebase -->
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+  <!-- ✅ Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
 
   <style>
@@ -83,9 +127,7 @@
       transition: transform 0.2s;
     }
 
-    .product:hover {
-      transform: scale(1.02);
-    }
+    .product:hover { transform: scale(1.02); }
 
     .product img {
       width: 100%;
@@ -93,9 +135,7 @@
       object-fit: cover;
     }
 
-    .product-details {
-      padding: 0.8rem;
-    }
+    .product-details { padding: 0.8rem; }
 
     .product-details h3 {
       font-size: 16px;
@@ -130,16 +170,14 @@
       text-decoration: none;
     }
 
-    .nav-btn:hover {
-      color: #007bff;
-    }
+    .nav-btn:hover { color: #007bff; }
 
     .nav-btn i {
       font-size: 20px;
       margin-bottom: 3px;
     }
 
-    /* Slide Menu */
+    /* ✅ Side Menu */
     .side-menu {
       position: fixed;
       top: 0;
@@ -153,9 +191,7 @@
       transition: left 0.3s ease;
     }
 
-    .side-menu.open {
-      left: 0;
-    }
+    .side-menu.open { left: 0; }
 
     .side-menu a {
       display: block;
@@ -177,224 +213,170 @@
       display: none;
     }
 
-    .overlay.show {
-      display: block;
-    }
+    .overlay.show { display: block; }
   </style>
 </head>
-<body>
 
-  <!-- Side Menu -->
+<body>
+  <!-- ✅ Side Menu -->
   <div id="sideMenu" class="side-menu">
-  <a href="index.html"><i class="fa-solid fa-house" style="color:#007bff;"></i> Home</a>
-  <a href="premium.html"><i class="fa-solid fa-star" style="color:#f39c12;"></i> Premium</a>
-  <a href="upload.html"><i class="fa-solid fa-upload" style="color:#27ae60;"></i> Upload</a>
-  <a href="inbox.html"><i class="fa-solid fa-envelope" style="color:#e74c3c;"></i> Inbox</a>
-  <a href="cart.html"><i class="fa-solid fa-cart-shopping" style="color:#9b59b6;"></i> My Cart</a>
-  <a href="languages.html"><i class="fa-solid fa-language" style="color:#e67e22;"></i> Language</a>
-  <a href="myprod.html"><i class="fa-solid fa-box-open" style="color:#16a085;"></i> My Product</a>
-  <a href="profile.html"><i class="fa-solid fa-user" style="color:#34495e;"></i> Profile</a>
-  <a href="support.html"><i class="fa-solid fa-headset" style="color:#2980b9;"></i> Support</a>
-</div>
+    <a href="index.html"><i class="fa-solid fa-house" style="color:#007bff;"></i> Home</a>
+    <a href="premium.html"><i class="fa-solid fa-star" style="color:#f39c12;"></i> Premium</a>
+    <a href="upload.html"><i class="fa-solid fa-upload" style="color:#27ae60;"></i> Upload</a>
+    <a href="inbox.html"><i class="fa-solid fa-envelope" style="color:#e74c3c;"></i> Inbox</a>
+    <a href="cart.html"><i class="fa-solid fa-cart-shopping" style="color:#9b59b6;"></i> My Cart</a>
+    <a href="languages.html"><i class="fa-solid fa-language" style="color:#e67e22;"></i> Language</a>
+    <a href="myprod.html"><i class="fa-solid fa-box-open" style="color:#16a085;"></i> My Product</a>
+    <a href="profile.html"><i class="fa-solid fa-user" style="color:#34495e;"></i> Profile</a>
+    <a href="support.html"><i class="fa-solid fa-headset" style="color:#2980b9;"></i> Support</a>
+  </div>
 
   <div id="overlay" class="overlay" onclick="toggleMenu()"></div>
 
-  <!-- Top Bar -->
+  <!-- ✅ Header -->
   <header>
     <i class="fa fa-bars menu-btn" onclick="toggleMenu()"></i>
     <form class="search-bar" action="search.html">
       <input type="text" name="q" placeholder="Search products..." required>
-      <button type="submit">
-        <i class="fa-solid fa-magnifying-glass"></i>
-      </button>
+      <button type="submit"><i class="fa-solid fa-magnifying-glass"></i></button>
     </form>
   </header>
 
-  <!-- Product Grid -->
-  <main id="productList">
-    <!-- Products will load here -->
-  </main>
+  <!-- ✅ Product Grid -->
+  <main id="productList"></main>
 
-  <!-- Bottom Navigation -->
+  <!-- ✅ Bottom Nav -->
   <nav class="bottom-nav">
-    <a href="index.html" class="nav-btn">
-      <i class="fa-solid fa-house"></i>
-      <span>Home</span>
-    </a>
-    <a href="cart.html" class="nav-btn">
-      <i class="fa-solid fa-cart-shopping"></i>
-      <span>My Cart</span>
-    </a>
-    <a href="profile.html" class="nav-btn">
-      <i class="fa-solid fa-user"></i>
-      <span>Profile</span>
-    </a>
+    <a href="index.html" class="nav-btn"><i class="fa-solid fa-house"></i><span>Home</span></a>
+    <a href="cart.html" class="nav-btn"><i class="fa-solid fa-cart-shopping"></i><span>My Cart</span></a>
+    <a href="profile.html" class="nav-btn"><i class="fa-solid fa-user"></i><span>Profile</span></a>
   </nav>
 
-  <!-- Firebase Init & Product Fetch -->
- <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
-import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
-import { getFirestore, collection, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+  <!-- ✅ Firebase + Translate Script -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+    import { getFirestore, collection, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyAZK9TwSJAh2zrp7LxkUHfQur0pBsrnCfk",
-  authDomain: "ooiy-in.firebaseapp.com",
-  projectId: "ooiy-in",
-  storageBucket: "ooiy-in.firebasestorage.app",
-  messagingSenderId: "782642713796",
-  appId: "1:782642713796:web:821e8bc94d116db26d6591"
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-
-const productList = document.getElementById('productList');
-const targetLang = localStorage.getItem("userLang") || "en";
-const TRANSLATE_API_KEY = "AIzaSyAOhj5t7GLyok9wYFDEYhyK7FHVbn-CRhs";
-
-// Translate function using Google Cloud Translation API
-async function translateText(text, target) {
-  if (!text.trim() || target === "en") return text;
-  try {
-    const res = await fetch(
-      `https://translation.googleapis.com/language/translate/v2?key=${TRANSLATE_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          q: text,
-          target: target,
-          format: "text"
-        })
-      }
-    );
-    const data = await res.json();
-    return data.data.translations[0].translatedText || text;
-  } catch (e) {
-    console.warn("Translate failed:", e);
-    return text;
-  }
-}
-
-// Translate static UI text
-async function translateStaticUI() {
-  const elements = document.querySelectorAll("h1, h2, h3, p, span, small, button, label");
-  for (const el of elements) {
-    const original = el.innerText.trim();
-    if (original) {
-      el.innerText = await translateText(original, targetLang);
-    }
-  }
-}
-
-function haversine(lat1, lon1, lat2, lon2) {
-  const toRad = deg => deg * Math.PI / 180;
-  const R = 6371;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a = Math.sin(dLat / 2) ** 2 +
-            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-            Math.sin(dLon / 2) ** 2;
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-async function loadProducts(userLat, userLng) {
-  productList.innerHTML = "Loading products...";
-
-  const snapshot = await getDocs(collection(db, 'details'));
-  const allProducts = [];
-
-  snapshot.forEach(docSnap => {
-    const data = docSnap.data();
-    const userId = docSnap.id;
-
-    for (const [key, value] of Object.entries(data)) {
-      if (
-        key.startsWith('product') &&
-        value.name &&
-        typeof value.latitude === 'number' &&
-        typeof value.longitude === 'number'
-      ) {
-        const distance = haversine(userLat, userLng, value.latitude, value.longitude);
-        allProducts.push({
-          ...value,
-          userId,
-          key,
-          distance
-        });
-      }
-    }
-  });
-
-  if (allProducts.length === 0) {
-    productList.innerHTML = await translateText("No products found.", targetLang);
-    return;
-  }
-
-  allProducts.sort((a, b) => a.distance - b.distance);
-  productList.innerHTML = "";
-
-  for (const productData of allProducts) {
-    const product = document.createElement('div');
-    product.className = 'product';
-
-    const photoUrl = (productData.photos && productData.photos.length > 0)
-      ? productData.photos[0]
-      : 'https://via.placeholder.com/300x200?text=No+Image';
-
-    const translatedName = await translateText(productData.name, targetLang);
-
-    product.innerHTML = `
-      <img src="${photoUrl}" alt="${translatedName}">
-      <div class="product-details">
-        <h3>${translatedName}</h3>
-        <p>₹${productData.price} <br><small>${productData.distance.toFixed(1)} km away</small></p>
-      </div>
-    `;
-
-    product.onclick = () => {
-      window.location.href = `view.html?user=${productData.userId}&key=${productData.key}`;
+    const firebaseConfig = {
+      apiKey: "AIzaSyAZK9TwSJAh2zrp7LxkUHfQur0pBsrnCfk",
+      authDomain: "ooiy-in.firebaseapp.com",
+      projectId: "ooiy-in",
+      storageBucket: "ooiy-in.firebasestorage.app",
+      messagingSenderId: "782642713796",
+      appId: "1:782642713796:web:821e8bc94d116db26d6591"
     };
 
-    productList.appendChild(product);
-  }
-}
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const productList = document.getElementById('productList');
+    const targetLang = localStorage.getItem("userLang") || "en";
+    const TRANSLATE_API_KEY = "AIzaSyAOhj5t7GLyok9wYFDEYhyK7FHVbn-CRhs";
 
-onAuthStateChanged(auth, async (user) => {
-  if (user) {
-    const userDocRef = doc(db, "details", user.uid);
-    const userDocSnap = await getDoc(userDocRef);
-
-    if (userDocSnap.exists()) {
-      const userData = userDocSnap.data();
-      if (typeof userData.latitude === 'number' && typeof userData.longitude === 'number') {
-        await loadProducts(userData.latitude, userData.longitude);
-        await translateStaticUI();
-        return;
+    async function translateText(text, target) {
+      if (!text.trim() || target === "en") return text;
+      try {
+        const res = await fetch(
+          `https://translation.googleapis.com/language/translate/v2?key=${TRANSLATE_API_KEY}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ q: text, target: target, format: "text" })
+          }
+        );
+        const data = await res.json();
+        return data.data.translations[0].translatedText || text;
+      } catch (e) {
+        console.warn("Translate failed:", e);
+        return text;
       }
     }
 
-    alert("Profile location not set. Using default location.");
-  }
+    async function translateStaticUI() {
+      const elements = document.querySelectorAll("h1, h2, h3, p, span, small, button, label");
+      for (const el of elements) {
+        const original = el.innerText.trim();
+        if (original) el.innerText = await translateText(original, targetLang);
+      }
+    }
 
-  // Guest or no location
-  const defaultLat = 28.6139;
-  const defaultLng = 77.2090;
-  await loadProducts(defaultLat, defaultLng);
-  await translateStaticUI();
-});
+    function haversine(lat1, lon1, lat2, lon2) {
+      const toRad = deg => deg * Math.PI / 180;
+      const R = 6371;
+      const dLat = toRad(lat2 - lat1);
+      const dLon = toRad(lon2 - lon1);
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+      return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
 
-// Slide menu toggle
-window.toggleMenu = function () {
-  document.getElementById('sideMenu').classList.toggle('open');
-  document.getElementById('overlay').classList.toggle('show');
-};
+    async function loadProducts(userLat, userLng) {
+      productList.innerHTML = "Loading products...";
+      const snapshot = await getDocs(collection(db, 'details'));
+      const allProducts = [];
 
-</script>
+      snapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        const userId = docSnap.id;
+        for (const [key, value] of Object.entries(data)) {
+          if (key.startsWith('product') && value.name && typeof value.latitude === 'number' && typeof value.longitude === 'number') {
+            const distance = haversine(userLat, userLng, value.latitude, value.longitude);
+            allProducts.push({ ...value, userId, key, distance });
+          }
+        }
+      });
 
+      if (allProducts.length === 0) {
+        productList.innerHTML = await translateText("No products found.", targetLang);
+        return;
+      }
 
+      allProducts.sort((a, b) => a.distance - b.distance);
+      productList.innerHTML = "";
+
+      for (const productData of allProducts) {
+        const product = document.createElement('div');
+        product.className = 'product';
+        const photoUrl = (productData.photos && productData.photos.length > 0)
+          ? productData.photos[0]
+          : 'https://via.placeholder.com/300x200?text=No+Image';
+        const translatedName = await translateText(productData.name, targetLang);
+        product.innerHTML = `
+          <img src="${photoUrl}" alt="${translatedName}">
+          <div class="product-details">
+            <h3>${translatedName}</h3>
+            <p>₹${productData.price} <br><small>${productData.distance.toFixed(1)} km away</small></p>
+          </div>`;
+        product.onclick = () => {
+          window.location.href = `view.html?user=${productData.userId}&key=${productData.key}`;
+        };
+        productList.appendChild(product);
+      }
+    }
+
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const userDocRef = doc(db, "details", user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists()) {
+          const userData = userDocSnap.data();
+          if (typeof userData.latitude === 'number' && typeof userData.longitude === 'number') {
+            await loadProducts(userData.latitude, userData.longitude);
+            await translateStaticUI();
+            return;
+          }
+        }
+        alert("Profile location not set. Using default location.");
+      }
+      const defaultLat = 28.6139, defaultLng = 77.2090;
+      await loadProducts(defaultLat, defaultLng);
+      await translateStaticUI();
+    });
+
+    window.toggleMenu = function() {
+      document.getElementById('sideMenu').classList.toggle('open');
+      document.getElementById('overlay').classList.toggle('show');
+    };
+  </script>
 </body>
 </html>
