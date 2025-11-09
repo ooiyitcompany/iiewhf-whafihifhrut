@@ -224,6 +224,15 @@
     const downloadAnchor = document.getElementById('downloadAnchor');
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
+    // helper: convert Blob -> data URL (used to hand off to Android interface)
+    function blobToDataURL(blob) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    }
   // text overlay elements
   const textOverlay = document.getElementById('textOverlay');
   const textColor = document.getElementById('textColor');
@@ -506,17 +515,32 @@
 
       recorder.ondataavailable = e => { if (e.data && e.data.size) recordedChunks.push(e.data); };
 
-      recorder.onstop = () => {
+      recorder.onstop = async () => {
         drawActive = false;
         const blob = new Blob(recordedChunks, { type: 'video/webm' });
-        const url = URL.createObjectURL(blob);
-        downloadAnchor.href = url;
-        downloadAnchor.download = 'trimmed.webm';
-        downloadAnchor.style.display = 'inline';
-        downloadAnchor.textContent = 'Download trimmed.webm';
-        // auto-click for convenience
-        downloadAnchor.click();
-        status.textContent = 'Export complete';
+        const filename = 'trimmed.webm';
+        // If running inside the Android WebView app, hand off to the native saver
+        try {
+          if (window.AndroidInterface && typeof window.AndroidInterface.saveBase64File === 'function') {
+            status.textContent = 'Saving via app...';
+            const dataUrl = await blobToDataURL(blob);
+            // AndroidInterface expects (base64Data, mimeType, filename)
+            window.AndroidInterface.saveBase64File(dataUrl, 'video/webm', filename);
+            status.textContent = 'Saved to device (app)';
+          } else {
+            const url = URL.createObjectURL(blob);
+            downloadAnchor.href = url;
+            downloadAnchor.download = filename;
+            downloadAnchor.style.display = 'inline';
+            downloadAnchor.textContent = 'Download ' + filename;
+            // auto-click for convenience
+            downloadAnchor.click();
+            status.textContent = 'Export complete';
+          }
+        } catch (err) {
+          console.error('Save/Download failed', err);
+          status.textContent = 'Export finished (but save failed)';
+        }
         exportBtn.disabled = false;
       };
 
@@ -627,10 +651,23 @@
         }
 
         const data = ffmpeg.FS('readFile', outName);
-        const blob = new Blob([data.buffer], { type: 'application/octet-stream' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a'); a.href = url; a.download = `trimmed.${ext}`; a.click();
-        status.textContent = 'Fast export complete';
+        const mime = (ext === 'mp4') ? 'video/mp4' : (ext === 'webm') ? 'video/webm' : 'application/octet-stream';
+        const blob = new Blob([data.buffer], { type: mime });
+        try {
+          if (window.AndroidInterface && typeof window.AndroidInterface.saveBase64File === 'function') {
+            status.textContent = 'Saving via app...';
+            const dataUrl = await blobToDataURL(blob);
+            window.AndroidInterface.saveBase64File(dataUrl, mime, `trimmed.${ext}`);
+            status.textContent = 'Saved to device (app)';
+          } else {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = `trimmed.${ext}`; a.click();
+            status.textContent = 'Fast export complete';
+          }
+        } catch (err) {
+          console.error('Fast export save failed', err);
+          status.textContent = 'Fast export finished (save failed)';
+        }
       } catch (err) {
         console.error(err);
         alert('Fast export failed: ' + (err && err.message ? err.message : err));
