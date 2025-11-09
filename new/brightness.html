@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Adjust Brightness</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #1a1a1a, #2d2d2d);
+            min-height: 100vh;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .top-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 1rem;
+            z-index: 100;
+        }
+
+        .back-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        .top-bar h1 {
+            font-size: 1.2rem;
+            background: linear-gradient(45deg, #6b9fff, #ff69b4);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .image-preview {
+            margin-top: 60px;
+            height: 50vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 1rem;
+        }
+
+        #preview-image {
+            max-width: 100%;
+            max-height: 100%;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .controls {
+            padding: 2rem;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+        }
+
+        .slider-container {
+            margin-bottom: 2rem;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .slider-value {
+            background: rgba(107, 159, 255, 0.2);
+            padding: 0.5rem 1rem;
+            border-radius: 15px;
+            min-width: 60px;
+            text-align: center;
+        }
+
+        .range-slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            outline: none;
+            margin: 1rem 0;
+        }
+
+        .range-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(45deg, #6b9fff, #ff69b4);
+            border-radius: 50%;
+            cursor: pointer;
+            border: 3px solid white;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .brightness-preview {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+
+        .preview-icon {
+            font-size: 2rem;
+            opacity: 0.5;
+        }
+
+        .preview-icon.bright {
+            opacity: 1;
+        }
+
+        .button-container {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .control-btn {
+            flex: 1;
+            padding: 1rem;
+            border: none;
+            border-radius: 30px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .reset-btn {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .apply-btn {
+            background: linear-gradient(45deg, #6b9fff, #ff69b4);
+            color: white;
+        }
+
+        .control-btn:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <button class="back-btn" onclick="history.back()">←</button>
+        <h1>Adjust Brightness</h1>
+        <div style="width: 24px"></div>
+    </div>
+
+    <div class="image-preview">
+        <img id="preview-image" alt="Preview">
+    </div>
+
+    <div class="controls">
+        <div class="brightness-preview">
+            <span class="preview-icon">🌑</span>
+            <span class="preview-icon">🌘</span>
+            <span class="preview-icon">🌗</span>
+            <span class="preview-icon">🌖</span>
+            <span class="preview-icon">🌕</span>
+        </div>
+        
+        <div class="slider-container">
+            <div class="slider-label">
+                <span>Brightness</span>
+                <span class="slider-value" id="brightness-value">0%</span>
+            </div>
+            <input type="range" 
+                   min="-100" 
+                   max="100" 
+                   value="0" 
+                   class="range-slider" 
+                   id="brightness-slider">
+        </div>
+
+        <div class="button-container">
+            <button class="control-btn reset-btn" onclick="resetBrightness()">Reset</button>
+            <button class="control-btn apply-btn" onclick="applyBrightness()">Apply</button>
+        </div>
+    </div>
+
+    <script>
+        let originalImage = null;
+        const slider = document.getElementById('brightness-slider');
+        const brightnessValue = document.getElementById('brightness-value');
+        const previewImage = document.getElementById('preview-image');
+        const brightnessIcons = document.querySelectorAll('.preview-icon');
+
+        window.onload = function() {
+            const imageData = localStorage.getItem('editImage');
+            if (imageData) {
+                originalImage = imageData;
+                previewImage.src = imageData;
+                updateBrightnessIcons(0);
+            }
+        };
+
+        slider.oninput = function() {
+            const value = this.value;
+            brightnessValue.textContent = `${value}%`;
+            updatePreview(value);
+            updateBrightnessIcons(value);
+        };
+
+        function updatePreview(value) {
+            const brightness = 100 + parseInt(value);
+            previewImage.style.filter = `brightness(${brightness}%)`;
+        }
+
+        function updateBrightnessIcons(value) {
+            const normalizedValue = (parseInt(value) + 100) / 200; // Convert to 0-1 range
+            const activeIndex = Math.floor(normalizedValue * 5);
+            
+            brightnessIcons.forEach((icon, index) => {
+                if (index <= activeIndex) {
+                    icon.style.opacity = '1';
+                } else {
+                    icon.style.opacity = '0.5';
+                }
+            });
+        }
+
+        function resetBrightness() {
+            slider.value = 0;
+            brightnessValue.textContent = '0%';
+            previewImage.style.filter = 'brightness(100%)';
+            updateBrightnessIcons(0);
+        }
+
+        function applyBrightness() {
+            const brightness = 100 + parseInt(slider.value);
+            
+            // Create canvas to apply the brightness permanently
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Set canvas size to match image
+            const img = new Image();
+            img.onload = function() {
+                canvas.width = img.width;
+                canvas.height = img.height;
+                
+                // Apply brightness filter and draw
+                ctx.filter = `brightness(${brightness}%)`;
+                ctx.drawImage(img, 0, 0);
+                
+                // Convert to base64 and store
+                const newImageData = canvas.toDataURL('image/jpeg');
+                localStorage.setItem('editImage', newImageData);
+                
+                // Return to previous page
+                history.back();
+            };
+            img.src = originalImage;
+        }
+    </script>
+</body>
+</html>

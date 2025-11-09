@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Save Image</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',Tahoma,Arial,sans-serif}
+  body{background:linear-gradient(135deg,#1a1a1a,#2d2d2d);min-height:100vh;color:#fff;display:flex;flex-direction:column}
+  .top-bar{position:fixed;top:0;left:0;right:0;height:60px;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:space-between;padding:0 1rem;z-index:120}
+  .back-btn{background:none;border:none;color:#fff;font-size:1.4rem;cursor:pointer}
+  .title{font-size:1.05rem;background:linear-gradient(45deg,#6b9fff,#ff69b4);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .preview-area{margin-top:60px;flex:1;display:flex;align-items:center;justify-content:center;padding:1rem}
+  .canvas-wrap{background:rgba(0,0,0,.12);padding:12px;border-radius:12px}
+  canvas{max-width:100%;max-height:60vh;border-radius:6px;display:block}
+  .controls{padding:1rem;background:rgba(0,0,0,.95);position:fixed;left:0;right:0;bottom:0;z-index:130}
+  .row{display:flex;gap:.5rem;align-items:center}
+  .res-list{display:flex;gap:.5rem;overflow:auto;padding:0.5rem 0 0.5rem 0;margin-bottom:.6rem}
+  .res-btn{flex:0 0 auto;padding:.55rem .75rem;border-radius:10px;border:none;background:rgba(255,255,255,.03);color:#fff;cursor:pointer;white-space:nowrap}
+  .res-btn.active{box-shadow:0 6px 18px rgba(107,159,255,.18);border-color:rgba(107,159,255,.35)}
+  .btn{flex:1;padding:.9rem;border-radius:12px;border:none;background:rgba(255,255,255,.06);color:#fff;cursor:pointer}
+  .btn.primary{background:linear-gradient(45deg,#6b9fff,#ff69b4)}
+  .format-select{padding:.5rem;border-radius:8px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.04);color:#fff}
+  .note{font-size:.85rem;color:rgba(255,255,255,.8);margin:6px 0}
+</style>
+</head>
+<body>
+  <div class="top-bar">
+    <button class="back-btn" onclick="history.back()">←</button>
+    <div class="title">Save Image</div>
+    <div style="width:24px"></div>
+  </div>
+
+  <div class="preview-area">
+    <div class="canvas-wrap">
+      <canvas id="previewCanvas"></canvas>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="note">Choose output resolution (vertical pixels). Aspect ratio preserved.</div>
+    <div class="res-list" id="resList">
+      <!-- buttons injected -->
+    </div>
+    <div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.6rem">
+      <select id="formatSelect" class="format-select">
+        <option value="image/jpeg">JPG</option>
+        <option value="image/png">PNG</option>
+      </select>
+      <button class="btn" id="downloadBtn">Download Current Size</button>
+      <button class="btn primary" id="downloadTargetBtn">Download Target</button>
+    </div>
+    <div class="note">Common presets: 140p, 240p, 360p, 480p, 720p, 1080p, 1440p (2K), 2160p (4K).</div>
+  </div>
+
+<script>
+  const presets = [140,240,360,480,720,1080,1440,2160];
+  const resList = document.getElementById('resList');
+  const previewCanvas = document.getElementById('previewCanvas');
+  const ctx = previewCanvas.getContext('2d');
+  const formatSelect = document.getElementById('formatSelect');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const downloadTargetBtn = document.getElementById('downloadTargetBtn');
+
+  let originalData = null;
+  let img = new Image();
+  let selectedTarget = presets[4]; // default 720p
+
+  function createButtons(){
+    presets.forEach(p=>{
+      const b = document.createElement('button'); b.className='res-btn'; b.textContent = p + 'p'; b.dataset.p = p;
+      if(p===selectedTarget) b.classList.add('active');
+      b.onclick = ()=>{ document.querySelectorAll('.res-btn').forEach(x=>x.classList.remove('active')); b.classList.add('active'); selectedTarget = p; renderPreviewForTarget(p); };
+      resList.appendChild(b);
+    });
+  }
+
+  window.onload = function(){
+    createButtons();
+    originalData = localStorage.getItem('editImage');
+    if(!originalData){ alert('No edited image found. Open the editor and create an image first.'); return; }
+    img.src = originalData;
+    img.onload = ()=>{
+      // set preview canvas to image natural size (or fit if too large)
+      fitPreviewCanvas();
+      drawPreview(img);
+      renderPreviewForTarget(selectedTarget);
+    };
+  };
+
+  function fitPreviewCanvas(){
+    const maxW = Math.min(window.innerWidth - 40, img.naturalWidth);
+    const maxH = Math.min(window.innerHeight * 0.6, img.naturalHeight);
+    // choose scale to fit
+    const scale = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
+    previewCanvas.width = Math.round(img.naturalWidth * scale);
+    previewCanvas.height = Math.round(img.naturalHeight * scale);
+    previewCanvas.style.width = previewCanvas.width + 'px';
+    previewCanvas.style.height = previewCanvas.height + 'px';
+  }
+
+  function drawPreview(image){
+    ctx.clearRect(0,0,previewCanvas.width,previewCanvas.height);
+    ctx.drawImage(image, 0, 0, previewCanvas.width, previewCanvas.height);
+  }
+
+  function renderPreviewForTarget(targetH){
+    // compute target width preserving aspect ratio
+    const ar = img.naturalWidth / img.naturalHeight;
+    const targetW = Math.round(ar * targetH);
+    // draw a scaled version into preview canvas (fit by height)
+    const scale = targetH <= img.naturalHeight ? (targetH / img.naturalHeight) : (Math.min(prevScaleForUpscale(), targetH / img.naturalHeight));
+    // we will render a representation: center-crop to fit preview area
+    const temp = document.createElement('canvas'); temp.width = targetW; temp.height = targetH; const tctx = temp.getContext('2d');
+    tctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, targetW, targetH);
+    // draw into preview canvas scaled down to fit
+    const fitScale = Math.min(previewCanvas.width / targetW, previewCanvas.height / targetH);
+    ctx.clearRect(0,0,previewCanvas.width,previewCanvas.height);
+    const drawW = Math.round(targetW * fitScale); const drawH = Math.round(targetH * fitScale);
+    const x = Math.round((previewCanvas.width - drawW)/2); const y = Math.round((previewCanvas.height - drawH)/2);
+    ctx.drawImage(temp, 0, 0, targetW, targetH, x, y, drawW, drawH);
+  }
+
+  function prevScaleForUpscale(){
+    // limit upscaling preview too large
+    return 2;
+  }
+
+  function downloadRes(targetH){
+    const ar = img.naturalWidth / img.naturalHeight;
+    const targetW = Math.round(ar * targetH);
+    const canvas = document.createElement('canvas'); canvas.width = targetW; canvas.height = targetH; const cctx = canvas.getContext('2d');
+    cctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, targetW, targetH);
+    const mime = formatSelect.value || 'image/jpeg';
+    const quality = (mime === 'image/jpeg') ? 0.92 : undefined;
+    const dataUrl = mime === 'image/png' ? canvas.toDataURL(mime) : canvas.toDataURL(mime, quality);
+    const a = document.createElement('a'); a.href = dataUrl; a.download = `edited-${targetH}p${mime==='image/png'?'.png':'.jpg'}`; a.click();
+  }
+
+  downloadTargetBtn.onclick = ()=>{ downloadRes(selectedTarget); };
+  downloadBtn.onclick = ()=>{
+    // download current displayed size (natural)
+    const mime = formatSelect.value || 'image/jpeg';
+    const canvas = document.createElement('canvas'); canvas.width = img.naturalWidth; canvas.height = img.naturalHeight; const cctx = canvas.getContext('2d'); cctx.drawImage(img,0,0);
+    const dataUrl = mime === 'image/png' ? canvas.toDataURL(mime) : canvas.toDataURL(mime,0.92);
+    const a = document.createElement('a'); a.href = dataUrl; a.download = `edited-original${mime==='image/png'?'.png':'.jpg'}`; a.click();
+  };
+
+  window.addEventListener('resize', ()=>{ if(img.complete) fitPreviewCanvas(); });
+</script>
+</body>
+</html>

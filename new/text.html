@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Add Text</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',Tahoma,Arial,sans-serif}
+  body{background:linear-gradient(135deg,#1a1a1a,#2d2d2d);min-height:100vh;color:#fff;display:flex;flex-direction:column}
+  .top-bar{position:fixed;top:0;left:0;right:0;height:60px;background:rgba(0,0,0,.85);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:space-between;padding:0 1rem;z-index:120}
+  .back-btn{background:none;border:none;color:#fff;font-size:1.4rem;cursor:pointer}
+  .title{font-size:1.05rem;background:linear-gradient(45deg,#6b9fff,#ff69b4);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+
+  .preview-area{margin-top:60px;flex:1;display:flex;align-items:center;justify-content:center;padding:1rem;position:relative}
+  .img-wrap{position:relative;max-width:100%;max-height:calc(100vh - 220px);background:rgba(0,0,0,.12);display:flex;align-items:center;justify-content:center}
+  #source-img{display:block;max-width:100%;max-height:100%;user-select:none;pointer-events:none}
+
+  /* text overlay container */
+  .overlay{position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:none}
+  .txt{position:absolute;min-width:40px;min-height:24px;padding:4px 8px;background:transparent;border-radius:6px;cursor:move;touch-action:none;pointer-events:auto;user-select:none}
+  .txt[contenteditable='true']{outline:2px dashed rgba(107,159,255,.6)}
+
+  .controls{padding:1rem;background:rgba(0,0,0,.95);position:fixed;left:0;right:0;bottom:0;z-index:130}
+  .row{display:flex;gap:.5rem;margin-bottom:.5rem}
+  .btn{padding:.6rem .9rem;border-radius:10px;border:none;background:rgba(255,255,255,.04);color:#fff;cursor:pointer}
+  .btn.primary{background:linear-gradient(45deg,#6b9fff,#ff69b4)}
+  .seg{display:flex;gap:.4rem}
+  .seg button{padding:.5rem .7rem;border-radius:8px;border:none;background:rgba(255,255,255,.03);color:#fff}
+  .seg button.active{box-shadow:0 6px 18px rgba(107,159,255,.18);border-color:rgba(107,159,255,.35)}
+
+  input[type=range]{-webkit-appearance:none;width:100%;height:12px;background:rgba(255,255,255,.06);border-radius:10px}
+  input[type=range]::-webkit-slider-thumb{appearance:none;width:28px;height:28px;background:linear-gradient(45deg,#6b9fff,#ff69b4);border-radius:50%;border:3px solid #fff}
+
+  .prop{display:flex;align-items:center;gap:.5rem}
+  .color{width:36px;height:36px;border-radius:6px;border:2px solid rgba(255,255,255,.12)}
+
+  @media(min-width:900px){.img-wrap{max-height:calc(100vh - 300px)}}
+</style>
+</head>
+<body>
+  <div class="top-bar">
+    <button class="back-btn" onclick="history.back()">←</button>
+    <div class="title">Add Text</div>
+    <div style="width:24px"></div>
+  </div>
+
+  <div class="preview-area">
+    <div class="img-wrap" id="imgWrap">
+      <img id="source-img" alt="Source image">
+      <div class="overlay" id="overlay"></div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="row">
+      <button class="btn" id="addTextBtn">+ Add Text</button>
+      <button class="btn" id="editBtn">Edit Selected</button>
+      <button class="btn primary" id="applyBtn">Apply</button>
+    </div>
+
+    <div class="row">
+      <div style="flex:1">
+        <div class="prop">Size <input id="sizeRange" type="range" min="12" max="200" value="48"></div>
+      </div>
+      <div style="width:84px;display:flex;align-items:center;justify-content:center">
+        <input id="colorPicker" type="color" class="color" value="#ffffff" title="Color">
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="prop" style="flex:1">Opacity <input id="opacityRange" type="range" min="0" max="100" value="100"></div>
+      <div class="prop" style="width:140px">Rotate <input id="rotateRange" type="range" min="-180" max="180" value="0"></div>
+    </div>
+
+    <div class="row">
+      <div class="seg" id="alignSeg">
+        <button data-align="left">Left</button>
+        <button data-align="center" class="active">Center</button>
+        <button data-align="right">Right</button>
+      </div>
+      <div style="flex:1"></div>
+      <button class="btn" id="deleteBtn">Delete</button>
+    </div>
+  </div>
+
+<script>
+  // Text overlay editor
+  const sourceImg = document.getElementById('source-img');
+  const imgWrap = document.getElementById('imgWrap');
+  const overlay = document.getElementById('overlay');
+  const addTextBtn = document.getElementById('addTextBtn');
+  const editBtn = document.getElementById('editBtn');
+  const applyBtn = document.getElementById('applyBtn');
+  const sizeRange = document.getElementById('sizeRange');
+  const colorPicker = document.getElementById('colorPicker');
+  const opacityRange = document.getElementById('opacityRange');
+  const rotateRange = document.getElementById('rotateRange');
+  const alignSeg = document.getElementById('alignSeg');
+  const deleteBtn = document.getElementById('deleteBtn');
+
+  let originalData = null;
+  let selected = null;
+  let naturalW = 0, naturalH = 0;
+
+  window.onload = function(){
+    const data = localStorage.getItem('editImage');
+    if(!data) return;
+    originalData = data;
+    sourceImg.src = data;
+    sourceImg.onload = () => { naturalW = sourceImg.naturalWidth; naturalH = sourceImg.naturalHeight; }
+  };
+
+  // helper to create a new text element
+  function createTextElement(text='Double-tap to edit'){
+    const el = document.createElement('div');
+    el.className = 'txt';
+    el.contentEditable = true;
+    el.innerText = text;
+    el.style.left = '20%'; el.style.top = '30%';
+    el.style.fontSize = sizeRange.value + 'px';
+    el.style.color = colorPicker.value;
+    el.style.opacity = opacityRange.value/100;
+    el.style.transform = `translate(-50%,-50%) rotate(0deg)`;
+    el.style.textAlign = 'center';
+    el.style.pointerEvents = 'auto';
+    el.style.userSelect = 'text';
+    overlay.appendChild(el);
+    makeDraggable(el);
+    selectElement(el);
+    // focus for editing text
+    setTimeout(()=>{ el.focus(); placeCaretAtEnd(el); }, 50);
+    return el;
+  }
+
+  function placeCaretAtEnd(el){
+    const range = document.createRange();
+    const sel = window.getSelection();
+    range.selectNodeContents(el); range.collapse(false);
+    sel.removeAllRanges(); sel.addRange(range);
+  }
+
+  addTextBtn.onclick = ()=> createTextElement();
+
+  // select element and update controls
+  function selectElement(el){
+    if(selected) selected.contentEditable = false;
+    selected = el;
+    if(!selected) return;
+    selected.contentEditable = true;
+    // update UI controls to match
+    const fs = parseInt(window.getComputedStyle(selected).fontSize,10) || 48;
+    sizeRange.value = fs; colorPicker.value = rgbToHex(window.getComputedStyle(selected).color) || '#ffffff';
+    opacityRange.value = Math.round((parseFloat(window.getComputedStyle(selected).opacity)||1)*100);
+    const tr = getRotationDegrees(selected);
+    rotateRange.value = tr;
+    const ta = window.getComputedStyle(selected).textAlign || 'center';
+    document.querySelectorAll('#alignSeg button').forEach(b=>b.classList.toggle('active', b.dataset.align===ta));
+    // highlight
+    document.querySelectorAll('.txt').forEach(t=>t.style.outline='');
+    selected.style.outline = '2px dashed rgba(107,159,255,.6)';
+  }
+
+  // make elements draggable (pointer events)
+  function makeDraggable(el){
+    let dragging=false, start={}, init={};
+    el.addEventListener('pointerdown', (e)=>{
+      e.preventDefault(); el.setPointerCapture(e.pointerId);
+      const p = getPointer(e); dragging=true; start.x=p.x; start.y=p.y; init.left=parseFloat(el.style.left); init.top=parseFloat(el.style.top);
+      // disable contentEditable while dragging
+      el.contentEditable = false;
+    });
+    window.addEventListener('pointermove', (e)=>{
+      if(!dragging) return;
+      const p = getPointer(e);
+      const dx = p.x - start.x; const dy = p.y - start.y;
+      // convert dx/dy from client px to percentage relative to imgWrap
+      const wrapRect = imgWrap.getBoundingClientRect();
+      const dxPct = (dx / wrapRect.width) * 100; const dyPct = (dy / wrapRect.height) * 100;
+      let nx = init.left + dxPct; let ny = init.top + dyPct;
+      nx = Math.max(0, Math.min(100, nx)); ny = Math.max(0, Math.min(100, ny));
+      el.style.left = nx + '%'; el.style.top = ny + '%';
+    });
+    window.addEventListener('pointerup', (e)=>{
+      if(!dragging) return; dragging=false; try{ el.releasePointerCapture(e.pointerId);}catch(e){}
+      el.contentEditable = true; selectElement(el);
+    });
+
+    // double-tap to edit (mobile friendly)
+    let lastTap=0;
+    el.addEventListener('touchend', (ev)=>{
+      const now = Date.now(); if(now - lastTap < 300){ el.focus(); placeCaretAtEnd(el);} lastTap = now;
+    });
+
+    // click selects
+    el.addEventListener('click', ()=> selectElement(el));
+  }
+
+  function getPointer(e){ const p = e.touches ? e.touches[0] : e; return {x:p.clientX, y:p.clientY}; }
+
+  // UI controls change selected element
+  sizeRange.oninput = ()=>{ if(!selected) return; selected.style.fontSize = sizeRange.value + 'px'; };
+  colorPicker.oninput = ()=>{ if(!selected) return; selected.style.color = colorPicker.value; };
+  opacityRange.oninput = ()=>{ if(!selected) return; selected.style.opacity = (opacityRange.value/100); };
+  rotateRange.oninput = ()=>{ if(!selected) return; selected.style.transform = `translate(-50%,-50%) rotate(${rotateRange.value}deg)`; };
+
+  alignSeg.addEventListener('click',(e)=>{ const b = e.target.closest('button'); if(!b || !selected) return; document.querySelectorAll('#alignSeg button').forEach(x=>x.classList.remove('active')); b.classList.add('active'); selected.style.textAlign = b.dataset.align; });
+
+  deleteBtn.onclick = ()=>{ if(!selected) return; selected.remove(); selected = null; }
+  editBtn.onclick = ()=>{ if(!selected) return; selected.focus(); placeCaretAtEnd(selected); }
+
+  // helper: convert rgb() to hex
+  function rgbToHex(rgb){ if(!rgb) return '#ffffff'; const m = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i); if(!m) return '#ffffff'; return '#'+[1,2,3].map(i=>parseInt(m[i]).toString(16).padStart(2,'0')).join(''); }
+
+  function getRotationDegrees(el){ const st = window.getComputedStyle(el).transform; if(st==='none') return 0; const values = st.split('(')[1].split(')')[0].split(','); const a = parseFloat(values[0]); const b = parseFloat(values[1]); const angle = Math.round(Math.atan2(b,a) * (180/Math.PI)); return angle; }
+
+  // Apply: flatten image + text overlays to canvas and save
+  applyBtn.onclick = ()=>{
+    if(!originalData) return;
+    updateImageRect();
+    const wrapRect = imgWrap.getBoundingClientRect();
+    const scaleX = naturalW / wrapRect.width; const scaleY = naturalH / wrapRect.height;
+
+    const img = new Image(); img.onload = function(){
+      const canvas = document.createElement('canvas');
+      canvas.width = naturalW; canvas.height = naturalH;
+      const ctx = canvas.getContext('2d');
+      // draw base image
+      ctx.drawImage(img,0,0,naturalW,naturalH);
+
+      // draw each text element
+      const texts = overlay.querySelectorAll('.txt');
+      texts.forEach(t => {
+        const style = window.getComputedStyle(t);
+        const leftPct = parseFloat(t.style.left || '50'); const topPct = parseFloat(t.style.top || '50');
+        const x = Math.round((leftPct/100) * naturalW);
+        const y = Math.round((topPct/100) * naturalH);
+        const fontSize = parseInt(style.fontSize,10) * (naturalW/ (wrapRect.width)); // scale font to natural size (approx)
+        const color = style.color || '#fff';
+        const align = style.textAlign || 'center';
+        const opacity = parseFloat(style.opacity || '1');
+        const rotation = getRotationDegrees(t) * Math.PI / 180;
+        const lines = t.innerText.split('\n');
+
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(rotation);
+        ctx.globalAlpha = opacity;
+        ctx.fillStyle = color;
+        ctx.textAlign = align;
+        ctx.textBaseline = 'middle';
+        ctx.font = `${fontSize}px sans-serif`;
+        // draw multi-line
+        const lineHeight = fontSize * 1.1;
+        const startY = -((lines.length-1)/2) * lineHeight;
+        lines.forEach((ln, idx)=>{
+          ctx.fillText(ln, 0, startY + idx*lineHeight);
+        });
+        ctx.restore();
+      });
+
+      const newData = canvas.toDataURL('image/jpeg');
+      localStorage.setItem('editImage', newData);
+      history.back();
+    };
+    img.src = originalData;
+  };
+
+  // keep track of image bounding rect
+  let imgRect = null;
+  function updateImageRect(){ imgRect = sourceImg.getBoundingClientRect(); }
+  window.addEventListener('resize', ()=>{ if(sourceImg.complete) updateImageRect(); });
+
+  // click overlay to select element
+  overlay.addEventListener('click', (e)=>{ const t = e.target.closest('.txt'); if(t) selectElement(t); else if(e.target===overlay) selectElement(null); });
+
+  // export caret helpers & final touches
+  function initFromExisting(){ // no-op for now, could read stored text elements
+  }
+
+</script>
+</body>
+</html>

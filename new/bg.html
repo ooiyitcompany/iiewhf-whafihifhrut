@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Background Remover</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',Tahoma,Arial,sans-serif}
+  body{
+    background: 
+      linear-gradient(120deg, rgba(20,20,28,.97), rgba(28,28,38,.95)),
+      repeating-linear-gradient(45deg, rgba(107,159,255,0.05) 0px, rgba(107,159,255,0.05) 1px, transparent 1px, transparent 10px),
+      repeating-linear-gradient(-45deg, rgba(255,105,180,0.07) 0px, rgba(255,105,180,0.07) 1px, transparent 1px, transparent 10px);
+    background-attachment: fixed;
+    min-height:100vh;
+    color:#fff;
+    display:flex;
+    flex-direction:column
+  }
+  .top-bar{position:fixed;top:0;left:0;right:0;height:60px;background:rgba(0,0,0,.85);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:space-between;padding:0 1rem;z-index:120;border-bottom:1px solid rgba(107,159,255,.15)}
+  .back-btn{background:none;border:none;color:#fff;font-size:1.4rem;cursor:pointer}
+  .title{font-size:1.05rem;background:linear-gradient(45deg,#6b9fff,#ff69b4);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .image-area{
+    margin-top:60px;
+    flex:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:1rem;
+    padding-bottom:80px;
+    position:relative;
+    overflow:hidden;
+    background:
+      radial-gradient(circle at 20% 20%, rgba(107,159,255,.03) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(255,105,180,.03) 0%, transparent 50%)
+  }
+  .canvas-wrap{
+    position:relative;
+    max-width:100%;
+    max-height:calc(100vh - 140px);
+    background:rgba(20,20,28,.5);
+    backdrop-filter:blur(20px);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:1px;
+    border-radius:12px;
+    box-shadow:
+      0 4px 24px rgba(0,0,0,.2),
+      0 1px 2px rgba(107,159,255,.1);
+    border:1px solid rgba(255,255,255,.08)
+  }
+  canvas{
+    max-width:100%;
+    max-height:100%;
+    border-radius:8px;
+    transition:transform .3s ease;
+    transform-origin:center center;
+    transform:scale(0.99);
+  }
+  .canvas-wrap:hover canvas{
+    transform:scale(1)
+  }
+  .controls{
+    padding:1rem;
+    background:rgba(16,16,24,.95);
+    position:fixed;
+    left:0;
+    right:0;
+    bottom:0;
+    z-index:130;
+    transform:translateY(calc(100% - 60px));
+    transition:all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow:0 -4px 20px rgba(0,0,0,.3);
+    backdrop-filter:blur(12px);
+    border-top:1px solid rgba(107,159,255,.15)
+  }
+  .controls.expanded{
+    transform:translateY(0)
+  }
+  .controls::before{
+    content:'';
+    position:absolute;
+    top:-24px;
+    left:0;
+    right:0;
+    height:24px;
+    background:rgba(16,16,24,.95);
+    clip-path:polygon(0 100%, 100% 100%, 100% 0, 55% 0, 50% 50%, 45% 0, 0 0);
+    backdrop-filter:blur(12px)
+  }
+  .controls-handle{
+    position:absolute;
+    top:-24px;
+    left:0;
+    right:0;
+    height:24px;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    transition:opacity 0.2s ease
+  }
+  .controls-handle:hover{
+    opacity:0.8
+  }
+  .modes{display:flex;gap:.5rem;margin-bottom:.6rem}
+  .mode-btn{flex:1;padding:.6rem;border-radius:10px;border:none;background:rgba(255,255,255,.03);color:#fff;cursor:pointer}
+  .mode-btn.active{box-shadow:0 6px 18px rgba(107,159,255,.18);border-color:rgba(107,159,255,.35)}
+  .bg-options{display:flex;gap:.5rem;margin-bottom:.6rem}
+  .bg-option{flex:1;padding:.55rem;border-radius:10px;border:none;background:rgba(255,255,255,.03);color:#fff;cursor:pointer}
+  .bg-option.active{box-shadow:0 6px 18px rgba(107,159,255,.18)}
+  .row{display:flex;gap:.6rem}
+  .btn{flex:1;padding:.8rem;border-radius:12px;border:none;background:rgba(255,255,255,.06);color:#fff;cursor:pointer}
+  .btn.apply{background:linear-gradient(45deg,#6b9fff,#ff69b4)}
+  .status{font-size:.9rem;color:rgba(255,255,255,.8);margin-bottom:.45rem}
+</style>
+</head>
+<body>
+  <div class="top-bar">
+    <button class="back-btn" onclick="history.back()">←</button>
+    <div class="title">Background Remover</div>
+    <div style="width:24px"></div>
+  </div>
+
+  <div class="image-area">
+    <div class="canvas-wrap" id="canvasWrap">
+      <canvas id="resultCanvas"></canvas>
+      <canvas id="overlayCanvas" style="position:absolute;left:0;top:0;pointer-events:auto"></canvas>
+    </div>
+  </div>
+
+    <div class="controls" id="controls">
+      <div class="controls-handle" id="controlsHandle">
+        <div style="width:40px;height:4px;background:rgba(255,255,255,.3);border-radius:2px"></div>
+      </div>
+      <div class="status" id="status">Loading model...</div>
+
+      <div style="display:flex;gap:.5rem;margin-bottom:.5rem;align-items:center">
+        <div style="flex:1;display:flex;gap:.4rem">
+          <button class="mode-btn active" id="modeBgRemove">Remove Background (keep subject)</button>
+          <button class="mode-btn" id="modeMainRemove">Remove Subject (erase main)</button>
+        </div>
+        <div style="display:flex;gap:.4rem;align-items:center">
+          <button class="mode-btn" id="undoBtn">↩ Undo</button>
+          <button class="mode-btn" id="redoBtn">↪ Redo</button>
+        </div>
+      </div>    <div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.5rem">
+      <div style="flex:1;display:flex;gap:.4rem;flex-direction:column">
+        <div style="display:flex;gap:.4rem" id="bgOptions">
+          <button class="bg-option active" data-type="blur">Blurred BG</button>
+          <button class="bg-option" data-type="pattern">Pattern BG</button>
+          <button class="bg-option" data-type="custom">Custom BG</button>
+        </div>
+        <div id="bgUploadArea" style="display:none;background:rgba(255,255,255,.03);border-radius:8px;padding:.5rem">
+          <input type="file" id="bgImageInput" accept="image/*" style="display:none">
+          <div style="display:flex;gap:.4rem;align-items:center">
+            <button class="bg-option" onclick="document.getElementById('bgImageInput').click()">Choose Image</button>
+            <div style="font-size:.85rem;color:rgba(255,255,255,.7)" id="bgFileName">No file chosen</div>
+          </div>
+        </div>
+      </div>
+      <div style="width:1px;background:rgba(255,255,255,.06);height:36px"></div>
+      <div style="display:flex;flex-direction:column;gap:.25rem;align-items:flex-end">
+        <div style="font-size:.85rem">Brush</div>
+        <div style="display:flex;gap:.4rem;align-items:center">
+          <button class="bg-option" id="brushErase">Erase</button>
+          <button class="bg-option" id="brushRestore">Restore</button>
+          <input id="brushSize" type="range" min="4" max="128" value="32">
+        </div>
+      </div>
+    </div>
+
+    <div class="row" style="margin-bottom:.5rem">
+      <button class="btn" id="runBtn">Run</button>
+      <button class="btn apply" id="applyBtn">Apply</button>
+    </div>
+  </div>
+
+  <!-- TensorFlow.js and BodyPix -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.20.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@2.0.5/dist/body-pix.min.js"></script>
+
+<script>
+  // bg.html: BodyPix-based background/person removal
+  const statusEl = document.getElementById('status');
+  const canvas = document.getElementById('resultCanvas');
+  const ctx = canvas.getContext('2d');
+  const modeBgRemove = document.getElementById('modeBgRemove');
+  const modeMainRemove = document.getElementById('modeMainRemove');
+  const bgOptions = document.getElementById('bgOptions');
+  const runBtn = document.getElementById('runBtn');
+  const applyBtn = document.getElementById('applyBtn');
+
+  let net = null;
+  let originalImageDataUrl = null;
+  let img = new Image();
+  let segmentationData = null; // Uint8Array mask (1 for person)
+  let maskArray = null; // Uint8Array mask we can paint (1=subject kept)
+  let maskHistory = [];
+  let maskHistoryIndex = -1;
+  const MAX_MASK_HISTORY = 40;
+  const overlayCanvas = document.getElementById('overlayCanvas');
+  const overlayCtx = overlayCanvas.getContext('2d');
+  let painting = false;
+  let paintMode = 'erase'; // 'erase' or 'restore'
+  let brushSize = 32;
+  let mode = 'bg-remove'; // 'bg-remove' or 'main-remove'
+  let bgChoice = 'transparent'; // 'transparent', 'blur', 'pattern' or 'custom'
+  let customBgImage = null; // Image object for custom background
+
+  async function loadModel(){
+    statusEl.textContent = 'Loading BodyPix model — please wait...';
+    net = await bodyPix.load({architecture:'MobileNetV1', outputStride:16, multiplier:0.75, quantBytes:2});
+    statusEl.textContent = 'Model loaded — load an image or press Run to segment';
+  }
+
+  window.onload = async function(){
+    await loadModel();
+    originalImageDataUrl = localStorage.getItem('editImage');
+    if(!originalImageDataUrl){ statusEl.textContent = 'No image found in localStorage (open editor first).'; return; }
+    img.src = originalImageDataUrl;
+    img.onload = ()=>{
+      fitCanvasToImage();
+      setupOverlay();
+      drawOriginal();
+    };
+  };
+
+  function setupOverlay(){
+    // size overlay to match result canvas pixel size and CSS size
+    overlayCanvas.width = canvas.width;
+    overlayCanvas.height = canvas.height;
+    overlayCanvas.style.width = canvas.style.width;
+    overlayCanvas.style.height = canvas.style.height;
+    overlayCanvas.style.left = canvas.offsetLeft + 'px';
+    overlayCanvas.style.top = canvas.offsetTop + 'px';
+    overlayCanvas.addEventListener('pointerdown', startPaint);
+    overlayCanvas.addEventListener('pointermove', paintMove);
+    window.addEventListener('pointerup', endPaint);
+    overlayCanvas.style.cursor = 'crosshair';
+  }
+
+  function fitCanvasToImage(){
+    const wrap = document.getElementById('canvasWrap');
+    // set canvas to image natural size for high quality
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    // also set CSS size to fit container
+    const maxW = wrap.clientWidth; const maxH = wrap.clientHeight;
+    const ratio = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
+    canvas.style.width = Math.round(img.naturalWidth * ratio) + 'px';
+    canvas.style.height = Math.round(img.naturalHeight * ratio) + 'px';
+  }
+
+  function drawOriginal(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(img,0,0,canvas.width,canvas.height);
+    statusEl.textContent = 'Image loaded — press Run to compute segmentation.';
+  }
+
+  runBtn.onclick = async function(){
+    if(!net){ statusEl.textContent = 'Model not loaded'; return; }
+    statusEl.textContent = 'Running segmentation — this may take a moment...';
+    // segment person
+    const segmentation = await net.segmentPerson(img, {
+      internalResolution: 'medium',
+      segmentationThreshold: 0.7,
+      maxDetections: 1,
+      scoreThreshold: 0.3,
+    });
+    // segmentation.data is a Uint8Array with 1 for person
+    segmentationData = segmentation.data;
+    // initialize paintable mask from segmentation (1 = subject present)
+    maskArray = new Uint8Array(segmentationData.length);
+    for(let i=0;i<segmentationData.length;i++) maskArray[i] = segmentationData[i] ? 1 : 0;
+    maskHistory = [];
+    maskHistoryIndex = -1;
+    pushMaskHistory();
+    statusEl.textContent = 'Segmentation ready — choose a mode and preview below.';
+    previewCurrentMode();
+  };
+
+  // Mode toggles
+  modeBgRemove.onclick = ()=>{ mode = 'bg-remove'; modeBgRemove.classList.add('active'); modeMainRemove.classList.remove('active'); previewCurrentMode(); };
+  modeMainRemove.onclick = ()=>{ mode = 'main-remove'; modeMainRemove.classList.add('active'); modeBgRemove.classList.remove('active'); previewCurrentMode(); };
+
+  bgOptions.addEventListener('click', (e)=>{
+    const b = e.target.closest('.bg-option'); 
+    if(!b) return; 
+    bgChoice = b.dataset.type; 
+    document.querySelectorAll('.bg-option').forEach(x=>x.classList.toggle('active', x===b));
+    // Show/hide upload area based on choice
+    document.getElementById('bgUploadArea').style.display = bgChoice === 'custom' ? 'block' : 'none';
+    previewCurrentMode();
+  });
+
+  // Handle background image upload
+  document.getElementById('bgImageInput').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    // Show filename
+    document.getElementById('bgFileName').textContent = file.name;
+    
+    // Load the background image
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      customBgImage = new Image();
+      customBgImage.onload = function() {
+        previewCurrentMode(); // Update preview when image loads
+      };
+      customBgImage.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  function previewCurrentMode(){
+    if(!segmentationData){ drawOriginal(); statusEl.textContent = 'Run segmentation first.'; return; }
+    if(mode === 'bg-remove'){
+      statusEl.textContent = 'Preview: background removed (subject on transparent background).';
+      previewBgRemoved();
+    } else {
+      statusEl.textContent = 'Preview: subject removed (background filled).';
+      previewMainRemoved();
+    }
+  }
+
+  function previewBgRemoved(){
+    const w = canvas.width, h = canvas.height;
+    const tmp = document.createElement('canvas'); tmp.width = w; tmp.height = h; const tctx = tmp.getContext('2d');
+    
+    if(bgChoice === 'transparent') {
+      // Just make background transparent
+      tctx.drawImage(img,0,0,w,h);
+      const id = tctx.getImageData(0,0,w,h);
+      const data = id.data; // RGBA
+      for(let i=0, p=0;i<maskArray.length;i++, p+=4){
+        const isPerson = maskArray[i];
+        if(!isPerson){ data[p+3] = 0; } // make transparent
+      }
+      tctx.putImageData(id,0,0);
+    } else {
+      // For other background types, use same logic as main-remove but invert the mask
+      const blurred = document.createElement('canvas'); 
+      blurred.width = w; blurred.height = h; 
+      const bctx = blurred.getContext('2d');
+      
+      // Setup background based on choice
+      if(bgChoice === 'blur') {
+        bctx.filter = 'blur(12px)'; 
+        bctx.drawImage(img,0,0,w,h);
+      } else if(bgChoice === 'pattern') {
+        const g = bctx.createLinearGradient(0,0,w,h);
+        g.addColorStop(0,'#2a2a2a'); g.addColorStop(1,'#1a1a1a');
+        bctx.fillStyle = g; bctx.fillRect(0,0,w,h);
+        bctx.globalAlpha = 0.06;
+        for(let i=0;i<5000;i++){ 
+          bctx.fillStyle = `rgba(${Math.floor(Math.random()*255)},${Math.floor(Math.random()*255)},${Math.floor(Math.random()*255)},0.02)`; 
+          bctx.fillRect(Math.random()*w, Math.random()*h, 1, 1); 
+        }
+        bctx.globalAlpha = 1;
+      } else if(bgChoice === 'custom' && customBgImage) {
+        // Scale and center custom background
+        const bgRatio = customBgImage.width / customBgImage.height;
+        const canvasRatio = w / h;
+        let sx, sy, sw, sh;
+        
+        if (bgRatio > canvasRatio) {
+          sh = customBgImage.height;
+          sw = sh * canvasRatio;
+          sy = 0;
+          sx = (customBgImage.width - sw) / 2;
+        } else {
+          sw = customBgImage.width;
+          sh = sw / canvasRatio;
+          sx = 0;
+          sy = (customBgImage.height - sh) / 2;
+        }
+        
+        bctx.drawImage(customBgImage, sx, sy, sw, sh, 0, 0, w, h);
+      }
+
+      // Composite subject over background
+      tctx.drawImage(blurred, 0, 0); // Draw background first
+      
+      // Draw subject
+      const subject = document.createElement('canvas');
+      subject.width = w; subject.height = h;
+      const sctx = subject.getContext('2d');
+      sctx.drawImage(img,0,0,w,h);
+      const subjectData = sctx.getImageData(0,0,w,h);
+      const sd = subjectData.data;
+      
+      for(let i=0, p=0;i<maskArray.length;i++, p+=4){
+        const isPerson = maskArray[i];
+        if(!isPerson){ sd[p+3] = 0; } // Cut out non-person pixels
+      }
+      sctx.putImageData(subjectData,0,0);
+      tctx.drawImage(subject,0,0); // Draw subject over background
+    }
+    
+    // Draw final result
+    ctx.clearRect(0,0,w,h);
+    ctx.drawImage(tmp,0,0);
+  }
+
+  function previewMainRemoved(){
+    const w = canvas.width, h = canvas.height;
+    // create blurred background canvas
+    const blurred = document.createElement('canvas'); blurred.width = w; blurred.height = h; const bctx = blurred.getContext('2d');
+    bctx.filter = 'blur(12px)'; bctx.drawImage(img,0,0,w,h);
+
+    // create pattern background if requested (tile a pattern)
+    const patternCanvas = document.createElement('canvas'); patternCanvas.width = w; patternCanvas.height = h; const pctx = patternCanvas.getContext('2d');
+    if(bgChoice === 'pattern'){
+      // simple gradient pattern
+      const g = pctx.createLinearGradient(0,0,w,h);
+      g.addColorStop(0,'#2a2a2a'); g.addColorStop(1,'#1a1a1a');
+      pctx.fillStyle = g; pctx.fillRect(0,0,w,h);
+      // some subtle noise
+      pctx.globalAlpha = 0.06;
+      for(let i=0;i<5000;i++){ pctx.fillStyle = `rgba(${Math.floor(Math.random()*255)},${Math.floor(Math.random()*255)},${Math.floor(Math.random()*255)},0.02)`; pctx.fillRect(Math.random()*w, Math.random()*h, 1, 1); }
+      pctx.globalAlpha = 1;
+    }
+
+    // get image datas
+    const orig = document.createElement('canvas'); orig.width = w; orig.height = h; const octx = orig.getContext('2d'); octx.drawImage(img,0,0,w,h); const origId = octx.getImageData(0,0,w,h);
+    const blurId = bctx.getImageData(0,0,w,h);
+    const finalId = octx.createImageData(w,h);
+    const od = origId.data, bd = blurId.data, fd = finalId.data;
+
+    // if pattern chosen, get pattern data
+    let patternData = null;
+    if(bgChoice === 'pattern'){ 
+      pctx.globalCompositeOperation = 'source-over'; 
+      patternData = pctx.getImageData(0,0,w,h).data; 
+    }
+    
+    // if custom background chosen, draw it scaled to fit
+    if(bgChoice === 'custom' && customBgImage) {
+      pctx.clearRect(0, 0, w, h);
+      const bgRatio = customBgImage.width / customBgImage.height;
+      const canvasRatio = w / h;
+      let sx, sy, sw, sh;
+      
+      if (bgRatio > canvasRatio) {
+        // background is wider - scale to height
+        sh = customBgImage.height;
+        sw = sh * canvasRatio;
+        sy = 0;
+        sx = (customBgImage.width - sw) / 2;
+      } else {
+        // background is taller - scale to width
+        sw = customBgImage.width;
+        sh = sw / canvasRatio;
+        sx = 0;
+        sy = (customBgImage.height - sh) / 2;
+      }
+      
+      pctx.drawImage(customBgImage, sx, sy, sw, sh, 0, 0, w, h);
+      patternData = pctx.getImageData(0, 0, w, h).data;
+    }
+
+    for(let i=0, p=0;i<maskArray.length;i++, p+=4){
+      const isPerson = maskArray[i];
+      if(isPerson){
+        // person: replace with blurred pixel OR pattern
+        if(bgChoice === 'pattern' || (bgChoice === 'custom' && patternData)){
+          fd[p] = patternData[p]; fd[p+1] = patternData[p+1]; fd[p+2] = patternData[p+2]; fd[p+3] = 255;
+        } else {
+          fd[p] = bd[p]; fd[p+1] = bd[p+1]; fd[p+2] = bd[p+2]; fd[p+3] = 255;
+        }
+      } else {
+        // background: keep original
+        fd[p] = od[p]; fd[p+1] = od[p+1]; fd[p+2] = od[p+2]; fd[p+3] = od[p+3];
+      }
+    }
+
+    ctx.putImageData(finalId,0,0);
+  }
+
+  // Painting helpers: modify maskArray by drawing filled circles at pixel coordinates
+  function clientToImageCoords(clientX, clientY){
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.round((clientX - rect.left) * (canvas.width / rect.width));
+    const y = Math.round((clientY - rect.top) * (canvas.height / rect.height));
+    return {x,y};
+  }
+
+  function applyBrushAt(px, py, radius, mode){
+    const w = canvas.width; const h = canvas.height;
+    const r2 = radius*radius;
+    const x0 = Math.max(0, Math.floor(px - radius));
+    const x1 = Math.min(w-1, Math.ceil(px + radius));
+    const y0 = Math.max(0, Math.floor(py - radius));
+    const y1 = Math.min(h-1, Math.ceil(py + radius));
+    for(let yy=y0; yy<=y1; yy++){
+      const dy = yy - py;
+      const dy2 = dy*dy;
+      let base = yy * w;
+      for(let xx=x0; xx<=x1; xx++){
+        const dx = xx - px;
+        if(dx*dx + dy2 <= r2){
+          const idx = base + xx;
+          maskArray[idx] = (mode === 'restore') ? 1 : 0;
+        }
+      }
+    }
+  }
+
+  function pushMaskHistory(){
+    // store a copy
+    maskHistory = maskHistory.slice(0, maskHistoryIndex+1);
+    maskHistory.push(new Uint8Array(maskArray));
+    maskHistoryIndex = maskHistory.length - 1;
+    if(maskHistory.length > MAX_MASK_HISTORY){ maskHistory.shift(); maskHistoryIndex--; }
+    updateUndoRedoButtons();
+  }
+
+  function updateUndoRedoButtons(){
+    const ub = document.getElementById('undoBtn');
+    const rb = document.getElementById('redoBtn');
+    ub.disabled = maskHistoryIndex <= 0;
+    rb.disabled = maskHistoryIndex >= maskHistory.length - 1;
+    ub.style.opacity = ub.disabled ? 0.4 : 1;
+    rb.style.opacity = rb.disabled ? 0.4 : 1;
+  }
+
+  function undoMask(){
+    if(maskHistoryIndex > 0){ maskHistoryIndex--; maskArray = new Uint8Array(maskHistory[maskHistoryIndex]); previewCurrentMode(); updateUndoRedoButtons(); }
+  }
+
+  function redoMask(){
+    if(maskHistoryIndex < maskHistory.length - 1){ maskHistoryIndex++; maskArray = new Uint8Array(maskHistory[maskHistoryIndex]); previewCurrentMode(); updateUndoRedoButtons(); }
+  }
+
+  function startPaint(e){
+    if(!maskArray) return;
+    painting = true;
+    paintMode = document.getElementById('brushErase').classList.contains('active') ? 'erase' : 'restore';
+    brushSize = parseInt(document.getElementById('brushSize').value,10) || 32;
+    const pt = clientToImageCoords(e.clientX, e.clientY);
+    applyBrushAt(pt.x, pt.y, Math.round(brushSize/2), paintMode);
+    previewCurrentMode();
+  }
+
+  function paintMove(e){
+    // draw as pointer moves
+    // also draw circle on overlay for feedback
+    overlayCtx.clearRect(0,0,overlayCanvas.width, overlayCanvas.height);
+    const rect = canvas.getBoundingClientRect();
+    const cx = (e.clientX - rect.left) * (overlayCanvas.width / rect.width);
+    const cy = (e.clientY - rect.top) * (overlayCanvas.height / rect.height);
+    overlayCtx.strokeStyle = 'rgba(107,159,255,0.9)'; overlayCtx.lineWidth = 2; overlayCtx.beginPath(); overlayCtx.arc(cx, cy, (document.getElementById('brushSize').value||32)/2 * (overlayCanvas.width/rect.width), 0, Math.PI*2); overlayCtx.stroke();
+    if(!painting) return;
+    const pt = clientToImageCoords(e.clientX, e.clientY);
+    applyBrushAt(pt.x, pt.y, Math.round(brushSize/2), paintMode);
+    previewCurrentMode();
+  }
+
+  function endPaint(e){
+    if(!painting) return;
+    painting = false;
+    overlayCtx.clearRect(0,0,overlayCanvas.width, overlayCanvas.height);
+    pushMaskHistory();
+  }
+
+  document.getElementById('undoBtn').addEventListener('click', undoMask);
+  document.getElementById('redoBtn').addEventListener('click', redoMask);
+  document.getElementById('brushErase').addEventListener('click', ()=>{ document.getElementById('brushErase').classList.add('active'); document.getElementById('brushRestore').classList.remove('active'); });
+  document.getElementById('brushRestore').addEventListener('click', ()=>{ document.getElementById('brushRestore').classList.add('active'); document.getElementById('brushErase').classList.remove('active'); });
+
+  // Apply: save current canvas image to localStorage and return
+  applyBtn.onclick = function(){
+    if(!segmentationData){ statusEl.textContent = 'Run segmentation first.'; return; }
+    // get current visible canvas pixels (already in canvas)
+    const dataUrl = canvas.toDataURL('image/png');
+    localStorage.setItem('editImage', dataUrl);
+    statusEl.textContent = 'Saved — returning to editor.';
+    setTimeout(()=> history.back(), 400);
+  };
+
+  // responsive: when container size changes, update CSS size
+  window.addEventListener('resize', ()=>{ if(img && img.complete) fitCanvasToImage(); });
+
+  // Controls drawer toggle
+  let controlsExpanded = false;
+  const controls = document.getElementById('controls');
+  const controlsHandle = document.getElementById('controlsHandle');
+  
+  controlsHandle.addEventListener('click', ()=>{
+    controlsExpanded = !controlsExpanded;
+    controls.classList.toggle('expanded', controlsExpanded);
+  });
+
+  // Touch swipe on handle
+  let touchStartY = 0;
+  controlsHandle.addEventListener('touchstart', (e)=>{
+    touchStartY = e.touches[0].clientY;
+  });
+  
+  controlsHandle.addEventListener('touchmove', (e)=>{
+    e.preventDefault();
+    const deltaY = touchStartY - e.touches[0].clientY;
+    if(deltaY > 30 && !controlsExpanded){
+      controlsExpanded = true;
+      controls.classList.add('expanded');
+    } else if(deltaY < -30 && controlsExpanded){
+      controlsExpanded = false;
+      controls.classList.remove('expanded');
+    }
+  });
+
+</script>
+</body>
+</html>

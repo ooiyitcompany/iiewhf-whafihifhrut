@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Add Image Inside — Photo Editor</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',Tahoma,Arial,sans-serif}
+  body{background:linear-gradient(135deg,#0f1226,#141824);min-height:100vh;color:#fff;display:flex;flex-direction:column}
+  .top-bar{position:fixed;top:0;left:0;right:0;height:60px;background:rgba(0,0,0,.7);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:space-between;padding:0 1rem;z-index:120}
+  .back-btn{background:none;border:none;color:#fff;font-size:1.4rem;cursor:pointer}
+  .title{font-size:1.05rem;background:linear-gradient(45deg,#6b9fff,#ff69b4);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .container{margin-top:60px;padding:1rem;display:flex;flex-direction:column;gap:.75rem;align-items:center}
+  #canvas-wrap{width:100%;max-width:1200px;background:rgba(255,255,255,0.02);border-radius:12px;padding:12px;display:flex;justify-content:center;align-items:center}
+  #baseDisplay{position:relative;width:100%;max-width:1000px;background:#111;border-radius:8px;overflow:hidden}
+  #baseImg{display:block;max-width:100%;width:100%;height:auto;user-select:none}
+  #overlayImg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(1) rotate(0deg);touch-action:none;cursor:grab;max-width:80%;max-height:80%}
+  .controls{display:flex;gap:.6rem;align-items:center;justify-content:center;padding:8px;margin-top:.6rem;flex-wrap:wrap}
+  .et-btn{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.04);color:#fff;padding:8px 10px;border-radius:8px;cursor:pointer}
+  .panel{max-width:1200px;width:100%;display:flex;gap:12px;align-items:center;justify-content:space-between;margin-top:.6rem}
+  .panel .left{display:flex;gap:.6rem;align-items:center}
+  .range{width:180px}
+  .note{max-width:1200px;margin:0 auto;padding:0 1rem 1rem 1rem;color:rgba(255,255,255,.7);font-size:.9rem}
+  .apply-btn{background:linear-gradient(45deg,#6b9fff,#ff69b4);border:none;color:#fff;padding:10px 16px;border-radius:10px;cursor:pointer}
+</style>
+</head>
+<body>
+  <div class="top-bar">
+    <button class="back-btn" onclick="history.back()">←</button>
+    <div class="title">Add Image Inside</div>
+    <div style="width:24px"></div>
+  </div>
+
+  <div class="container">
+    <div id="canvas-wrap">
+      <div id="baseDisplay">
+        <img id="baseImg" alt="Base image - load from editor">
+        <img id="overlayImg" alt="Overlay" style="display:none">
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="left">
+        <label class="et-btn" for="fileInput">Choose Overlay</label>
+        <input id="fileInput" type="file" accept="image/*" style="display:none">
+        <button class="et-btn" id="resetBtn">Reset</button>
+        <button class="et-btn" id="removeBtn">Remove</button>
+      </div>
+      <div class="right">
+        <button class="apply-btn" id="applyBtn">Apply & Save</button>
+      </div>
+    </div>
+
+    <div class="controls">
+      <label style="font-size:.9rem;color:rgba(255,255,255,.9)">Scale</label>
+      <input id="scaleRange" class="range" type="range" min="0.1" max="3" step="0.01" value="1">
+      <label style="font-size:.9rem;color:rgba(255,255,255,.9)">Rotate</label>
+      <input id="rotateRange" class="range" type="range" min="-180" max="180" step="1" value="0">
+    </div>
+
+    <div class="note">Pick one image to overlay. Drag the overlay to position, use the Scale and Rotate controls to adjust. Click Apply & Save to merge into the main photo.</div>
+  </div>
+
+<script>
+  // Elements
+  const baseImg = document.getElementById('baseImg');
+  const overlayImg = document.getElementById('overlayImg');
+  const fileInput = document.getElementById('fileInput');
+  const scaleRange = document.getElementById('scaleRange');
+  const rotateRange = document.getElementById('rotateRange');
+  const resetBtn = document.getElementById('resetBtn');
+  const removeBtn = document.getElementById('removeBtn');
+  const applyBtn = document.getElementById('applyBtn');
+  const baseDisplay = document.getElementById('baseDisplay');
+
+  // transform state
+  let tx = 0, ty = 0, scale = 1, rotation = 0;
+  let isDragging = false, dragStart = null;
+
+  // Load base image from localStorage
+  window.addEventListener('load', ()=>{
+    const data = localStorage.getItem('editImage');
+    if(!data){ baseImg.alt = 'No edited image found. Open editor and choose an image first.'; return; }
+    baseImg.src = data;
+  });
+
+  // file input
+  fileInput.addEventListener('change', (e)=>{
+    const f = e.target.files && e.target.files[0];
+    if(!f) return;
+    overlayImg.src = URL.createObjectURL(f);
+    overlayImg.style.display = 'block';
+    // reset transform and center overlay
+    scale = 1; rotation = 0; tx = 0; ty = 0; updateOverlayTransform();
+    // revoke objectURL when loaded to free memory
+    overlayImg.onload = ()=>{ URL.revokeObjectURL(overlayImg.src); }
+  });
+
+  // pointer drag to move overlay
+  overlayImg.addEventListener('pointerdown', (e)=>{
+    e.preventDefault();
+    overlayImg.setPointerCapture(e.pointerId);
+    isDragging = true; dragStart = {x: e.clientX, y: e.clientY, tx, ty}; overlayImg.style.cursor='grabbing';
+  });
+  window.addEventListener('pointermove', (e)=>{
+    if(!isDragging || !dragStart) return;
+    const dx = e.clientX - dragStart.x; const dy = e.clientY - dragStart.y;
+    tx = dragStart.tx + dx; ty = dragStart.ty + dy; updateOverlayTransform();
+  });
+  window.addEventListener('pointerup', (e)=>{ if(isDragging){ isDragging=false; dragStart=null; overlayImg.style.cursor='grab'; } });
+
+  // controls
+  scaleRange.addEventListener('input', (e)=>{ scale = parseFloat(e.target.value); updateOverlayTransform(); });
+  rotateRange.addEventListener('input', (e)=>{ rotation = parseFloat(e.target.value); updateOverlayTransform(); });
+
+  function updateOverlayTransform(){
+    overlayImg.style.transform = `translate(calc(-50% + ${tx}px), calc(-50% + ${ty}px)) scale(${scale}) rotate(${rotation}deg)`;
+  }
+
+  resetBtn.addEventListener('click', ()=>{ tx=0; ty=0; scale=1; rotation=0; scaleRange.value='1'; rotateRange.value='0'; updateOverlayTransform(); });
+  removeBtn.addEventListener('click', ()=>{ overlayImg.src=''; overlayImg.style.display='none'; tx=0;ty=0;scale=1;rotation=0; updateOverlayTransform(); fileInput.value=''; });
+
+  // Apply: composite base + overlay into canvas and save to localStorage 'editImage'
+  applyBtn.addEventListener('click', async ()=>{
+    if(!baseImg.src){ alert('No base image loaded.'); return; }
+    // if overlay is not shown, just keep base unchanged
+    if(!overlayImg.src || overlayImg.style.display === 'none'){ alert('No overlay image selected.'); return; }
+
+    // wait for images to be decoded
+    await Promise.all([baseImg.decode(), overlayImg.decode()].map(p=>p.catch(()=>{})));
+
+    // create canvas
+    const canvas = document.createElement('canvas');
+    canvas.width = baseImg.naturalWidth; canvas.height = baseImg.naturalHeight;
+    const ctx = canvas.getContext('2d');
+
+    // draw base
+    ctx.drawImage(baseImg, 0,0, canvas.width, canvas.height);
+
+    // compute overlay draw parameters
+    const baseRect = baseDisplay.getBoundingClientRect();
+    const ovRect = overlayImg.getBoundingClientRect();
+
+    // center point of overlay relative to base display
+    const centerX = (ovRect.left - baseRect.left) + ovRect.width/2;
+    const centerY = (ovRect.top - baseRect.top) + ovRect.height/2;
+
+    // map to canvas coords
+    const sx = canvas.width / baseRect.width; const sy = canvas.height / baseRect.height;
+    const cx = centerX * sx; const cy = centerY * sy;
+
+    // draw width/height in canvas pixels (use displayed bounding width/height mapped to canvas)
+    const drawW = ovRect.width * sx; const drawH = ovRect.height * sy;
+
+    // apply rotation around center and draw
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rotation * Math.PI/180);
+    // drawImage centered
+    ctx.drawImage(overlayImg, -drawW/2, -drawH/2, drawW, drawH);
+    ctx.restore();
+
+    // final result
+    const out = canvas.toDataURL('image/png');
+    localStorage.setItem('editImage', out);
+
+    applyBtn.textContent = 'Saved ✓';
+    setTimeout(()=> location.href = 'edit.html', 500);
+  });
+
+  // allow dropping an image file onto the base area
+  baseDisplay.addEventListener('dragover', (e)=>{ e.preventDefault(); baseDisplay.style.opacity=0.98; });
+  baseDisplay.addEventListener('dragleave', (e)=>{ baseDisplay.style.opacity=1; });
+  baseDisplay.addEventListener('drop', (e)=>{
+    e.preventDefault(); baseDisplay.style.opacity=1;
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if(!f) return;
+    // treat drop as overlay as well
+    if(f.type.startsWith('image/')){
+      overlayImg.src = URL.createObjectURL(f);
+      overlayImg.style.display='block'; tx=0;ty=0;scale=1;rotation=0; updateOverlayTransform();
+      overlayImg.onload = ()=>{ URL.revokeObjectURL(overlayImg.src); }
+    }
+  });
+
+</script>
+</body>
+</html>

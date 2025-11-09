@@ -1,0 +1,644 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Video Editor — MVP</title>
+  <style>
+  * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    body {
+      background: linear-gradient(135deg, #1a1a1a, #2d2d2d);
+      min-height: 100vh;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+    }
+
+    .top-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 60px;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(10px);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 1rem;
+      z-index: 100;
+    }
+
+    .top-bar h1 {
+      font-size: 1.1rem;
+      background: linear-gradient(45deg, #6b9fff, #ff69b4);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .container {
+      margin-top: 60px;
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 1rem;
+    }
+
+    .media-wrap {
+      width: 100%;
+      max-width: 900px;
+      background: rgba(0,0,0,0.2);
+      padding: 18px;
+      border-radius: 12px;
+      box-shadow: 0 6px 30px rgba(0,0,0,0.6);
+    }
+
+    video { width:100%; max-height:560px; background:#000; border-radius:8px }
+
+    .controls { margin-top:12px; display:grid; gap:12px; }
+    .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    label { font-size:0.9rem; }
+    .sliders { display:flex; gap:12px; align-items:center; }
+    .slider { display:flex; flex-direction:column; align-items:flex-start; }
+    button { padding:8px 12px; border-radius:8px; border: none; cursor: pointer; }
+    .save-btn {
+      position: fixed;
+      bottom: calc(1rem + 100px);
+      right: 1rem;
+      background: linear-gradient(45deg, #6b9fff, #ff69b4);
+      color: white;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+      cursor: pointer;
+      z-index: 150;
+    }
+
+    .bottom-tools {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(10px);
+      padding: 1rem;
+      z-index: 120;
+    }
+
+    #canvas { display:none; }
+    .note { font-size:0.85rem; color:#ddd; margin-top:8px }
+    /* Mobile adjustments */
+    @media (max-width: 600px) {
+      .media-wrap { padding: 12px; border-radius: 8px; }
+      .sliders { flex-direction: column; gap: 10px; }
+      .slider { width: 100%; }
+      button { width: 100%; padding: 12px; font-size: 16px; }
+      .row { flex-direction: column; align-items: stretch; }
+      .save-btn { right: 12px; bottom: 90px; width: 48px; height: 48px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="top-bar">
+    <button class="back-btn" onclick="window.location.href='index.html'">←</button>
+    <h1>Video Editor</h1>
+    <div style="width:48px"></div>
+  </div>
+
+  <div class="container">
+    <div class="media-wrap">
+      <p class="note">Ooiy</p>
+      <div class="controls">
+        <input id="file" type="file" accept="video/*" />
+
+        <div class="video-container" style="position:relative; width:100%;">
+          <video id="video" controls crossorigin="anonymous"></video>
+          <div id="overlayWrap" style="position:absolute; left:0; top:0; right:0; bottom:0; pointer-events:none;">
+            <div id="textOverlay" contenteditable="true" spellcheck="false" style="position:absolute; left:20px; top:20px; min-width:100px; min-height:40px; color:#fff; font-size:36px; cursor:move; pointer-events:auto;">
+              Add text here
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <button id="playPause">Play</button>
+          <label>Current: <span id="current">0.00</span>s</label>
+          <label>Duration: <span id="duration">0.00</span>s</label>
+        </div>
+
+        <div class="row" style="gap:18px;">
+          <div style="flex:1; min-width:180px">
+            <label style="display:flex; justify-content:space-between; align-items:center">Trim In: <span id="trimInDisplay">00:00:00</span></label>
+            <input id="trimIn" type="range" min="0" step="0.1" value="0" style="width:100%" />
+            <button id="setTrimIn" style="margin-top:6px">Set from current</button>
+          </div>
+          <div style="flex:1; min-width:180px">
+            <label style="display:flex; justify-content:space-between; align-items:center">Trim Out: <span id="trimOutDisplay">00:00:00</span></label>
+            <input id="trimOut" type="range" min="0" step="0.1" value="0" style="width:100%" />
+            <button id="setTrimOut" style="margin-top:6px">Set from current</button>
+          </div>
+        </div>
+
+        <div>
+          <strong>Filters (preview & export)</strong>
+          <div class="sliders" style="flex-wrap:wrap;">
+            <div class="slider"><label>Brightness</label><input id="brightness" type="range" min="0" max="200" value="100" /></div>
+            <div class="slider"><label>Contrast</label><input id="contrast" type="range" min="0" max="200" value="100" /></div>
+            <div class="slider"><label>Saturation</label><input id="saturation" type="range" min="0" max="300" value="100" /></div>
+            <div class="slider"><label>Sepia</label><input id="sepia" type="range" min="0" max="100" value="0" /></div>
+            <div class="slider"><label>Grayscale</label><input id="grayscale" type="range" min="0" max="100" value="0" /></div>
+            <div class="slider"><label>Invert</label><input id="invert" type="range" min="0" max="100" value="0" /></div>
+            <div class="slider"><label>Hue (°)</label><input id="hue" type="range" min="0" max="360" value="0" /></div>
+            <div class="slider"><label>Blur (px)</label><input id="blur" type="range" min="0" max="10" value="0" step="0.5" /></div>
+            <div class="slider"><label>Opacity</label><input id="opacity" type="range" min="0" max="100" value="100" /></div>
+          </div>
+        </div>
+
+        <div style="margin-top:12px">
+          <strong>Text Overlay</strong>
+          <div style="display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap">
+            <input id="textColor" type="color" value="#ffffff" title="Choose color" />
+            <label style="display:flex; gap:6px; align-items:center">Size <input id="textSize" type="number" min="8" max="200" value="36" style="width:72px" /></label>
+            <button id="applyColor">Apply to selection</button>
+            <button id="clearText">Clear</button>
+          </div>
+
+          <!-- overlay moved to sit on top of the video element for correct positioning -->
+          <div style="font-size:0.85rem; color:#ccc; margin-top:6px">Tip: select characters and click "Apply to selection" to color parts of the text.</div>
+        </div>
+
+        <div class="row">
+          <button id="export">Export Trimmed Clip</button>
+          <span id="status"></span>
+        </div>
+
+        <a id="downloadAnchor" style="display:none"></a>
+      </div>
+    </div>
+  </div>
+
+  <canvas id="canvas"></canvas>
+
+  <button class="save-btn" title="Export" onclick="document.getElementById('export').click()">⤓</button>
+
+  <script>
+    /* @ts-nocheck */
+    const fileEl = document.getElementById('file');
+    const video = document.getElementById('video');
+    const playPause = document.getElementById('playPause');
+    const currentEl = document.getElementById('current');
+    const durationEl = document.getElementById('duration');
+  const trimInEl = document.getElementById('trimIn');
+  const trimOutEl = document.getElementById('trimOut');
+  const setTrimIn = document.getElementById('setTrimIn');
+  const setTrimOut = document.getElementById('setTrimOut');
+  const trimInDisplay = document.getElementById('trimInDisplay');
+  const trimOutDisplay = document.getElementById('trimOutDisplay');
+  const brightnessEl = document.getElementById('brightness');
+  const contrastEl = document.getElementById('contrast');
+  const saturationEl = document.getElementById('saturation');
+  const sepiaEl = document.getElementById('sepia');
+  const grayscaleEl = document.getElementById('grayscale');
+  const invertEl = document.getElementById('invert');
+  const hueEl = document.getElementById('hue');
+  const blurEl = document.getElementById('blur');
+  const opacityEl = document.getElementById('opacity');
+    const exportBtn = document.getElementById('export');
+  const exportNoPlayBtn = document.getElementById('exportNoPlay');
+    const status = document.getElementById('status');
+    const downloadAnchor = document.getElementById('downloadAnchor');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+  // text overlay elements
+  const textOverlay = document.getElementById('textOverlay');
+  const textColor = document.getElementById('textColor');
+  const applyColor = document.getElementById('applyColor');
+  const textSizeEl = document.getElementById('textSize');
+  const clearTextBtn = document.getElementById('clearText');
+
+    let fileURL = null;
+  // overlay position (pixels relative to video element)
+  let overlayPos = { x: 20, y: 20 };
+  let dragging = false, dragOffset = {x:0,y:0};
+
+    function updateFilterStyle() {
+      const b = brightnessEl.value;
+      const c = contrastEl.value;
+      const s = saturationEl.value;
+      const sep = sepiaEl.value;
+      const gray = grayscaleEl.value;
+      const inv = invertEl.value;
+      const h = hueEl.value;
+      const bl = blurEl.value;
+      const op = opacityEl.value;
+      // build CSS filter string
+      const parts = [];
+      parts.push(`brightness(${b}%)`);
+      parts.push(`contrast(${c}%)`);
+      parts.push(`saturate(${s}%)`);
+      if (sep > 0) parts.push(`sepia(${sep}%)`);
+      if (gray > 0) parts.push(`grayscale(${gray}%)`);
+      if (inv > 0) parts.push(`invert(${inv}%)`);
+      if (h != 0) parts.push(`hue-rotate(${h}deg)`);
+      if (bl > 0) parts.push(`blur(${bl}px)`);
+      video.style.filter = parts.join(' ');
+      video.style.opacity = (op/100).toString();
+    }
+
+    [brightnessEl, contrastEl, saturationEl, sepiaEl, grayscaleEl, invertEl, hueEl, blurEl, opacityEl].forEach(el=>el.addEventListener('input', updateFilterStyle));
+
+    // Text overlay: apply color to selected text inside contenteditable
+    applyColor.addEventListener('click', ()=>{
+      const color = textColor.value || '#ffffff';
+      try {
+        // try deprecated execCommand first (widely supported)
+        document.execCommand('styleWithCSS', false, true);
+        document.execCommand('foreColor', false, color);
+      } catch (e) {
+        const sel = window.getSelection();
+        if (!sel || sel.rangeCount===0) return;
+        const range = sel.getRangeAt(0);
+        const span = document.createElement('span');
+        span.style.color = color;
+        try { range.surroundContents(span); } catch(e2) {
+          // fallback: extract contents and wrap
+          const docFrag = range.extractContents();
+          span.appendChild(docFrag);
+          range.insertNode(span);
+        }
+      }
+      // ensure font size applied to new spans
+      textOverlay.style.fontSize = textSizeEl.value + 'px';
+      textOverlay.focus();
+    });
+
+    clearTextBtn.addEventListener('click', ()=>{ textOverlay.innerText = ''; });
+
+    // make the overlay draggable over the video preview (pointer events for touch + mouse)
+    textOverlay.style.touchAction = 'none';
+    textOverlay.addEventListener('pointerdown', (e)=>{
+      e.preventDefault();
+      textOverlay.setPointerCapture(e.pointerId);
+      dragging = true;
+      const rect = textOverlay.getBoundingClientRect();
+      dragOffset.x = e.clientX - rect.left;
+      dragOffset.y = e.clientY - rect.top;
+    });
+    window.addEventListener('pointermove', (e)=>{
+      if (!dragging) return;
+      const videoRect = video.getBoundingClientRect();
+      let nx = e.clientX - videoRect.left - dragOffset.x;
+      let ny = e.clientY - videoRect.top - dragOffset.y;
+      // clamp inside video
+      nx = Math.max(0, Math.min(nx, videoRect.width - textOverlay.offsetWidth));
+      ny = Math.max(0, Math.min(ny, videoRect.height - textOverlay.offsetHeight));
+      textOverlay.style.left = nx + 'px';
+      textOverlay.style.top = ny + 'px';
+      overlayPos.x = nx; overlayPos.y = ny;
+    });
+    textOverlay.addEventListener('pointerup', (e)=>{ dragging = false; try{ textOverlay.releasePointerCapture(e.pointerId);}catch(e){} });
+
+    // keep font size in sync
+    textSizeEl.addEventListener('input', ()=>{ textOverlay.style.fontSize = textSizeEl.value + 'px'; });
+
+    fileEl.addEventListener('change', e => {
+      const f = e.target.files && e.target.files[0];
+      if (!f) return;
+      if (fileURL) URL.revokeObjectURL(fileURL);
+      fileURL = URL.createObjectURL(f);
+      video.src = fileURL;
+      status.textContent = '';
+    });
+
+    video.addEventListener('loadedmetadata', () => {
+      durationEl.textContent = video.duration.toFixed(2);
+      // set range slider max to video duration
+      trimInEl.max = video.duration.toFixed(2);
+      trimOutEl.max = video.duration.toFixed(2);
+      trimOutEl.value = video.duration.toFixed(2);
+      // update displays in hh:mm:ss
+      trimInDisplay.textContent = formatTime(parseFloat(trimInEl.value || 0));
+      trimOutDisplay.textContent = formatTime(parseFloat(trimOutEl.value || video.duration));
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 360;
+      // initialize overlayPos so drawing aligns with current overlay position
+      try {
+        const vRect = video.getBoundingClientRect();
+        const tRect = textOverlay.getBoundingClientRect();
+        overlayPos.x = Math.max(0, tRect.left - vRect.left);
+        overlayPos.y = Math.max(0, tRect.top - vRect.top);
+      } catch(e) { /* ignore */ }
+    });
+
+    video.addEventListener('timeupdate', () => {
+      currentEl.textContent = video.currentTime.toFixed(2);
+    });
+
+    playPause.addEventListener('click', () => {
+      if (video.paused) { video.play(); playPause.textContent = 'Pause'; }
+      else { video.pause(); playPause.textContent = 'Play'; }
+    });
+
+    function formatTime(s) {
+      if (!isFinite(s)) s = 0;
+      s = Math.max(0, Math.floor(s));
+      const hh = Math.floor(s / 3600);
+      const mm = Math.floor((s % 3600) / 60);
+      const ss = Math.floor(s % 60);
+      return [hh, mm, ss].map(n => String(n).padStart(2, '0')).join(':');
+    }
+
+    setTrimIn.addEventListener('click', () => {
+      trimInEl.value = Math.min(parseFloat(video.currentTime.toFixed(2)), parseFloat(trimOutEl.max));
+      trimInDisplay.textContent = formatTime(trimInEl.value);
+    });
+    setTrimOut.addEventListener('click', () => {
+      trimOutEl.value = Math.max(parseFloat(video.currentTime.toFixed(2)), parseFloat(trimInEl.value));
+      trimOutDisplay.textContent = formatTime(trimOutEl.value);
+    });
+
+    // keep displays in sync and enforce start <= end
+    trimInEl.addEventListener('input', ()=>{
+      let v = parseFloat(trimInEl.value);
+      if (v > parseFloat(trimOutEl.value)) {
+        // push end forward to match start
+        trimOutEl.value = v;
+        trimOutDisplay.textContent = formatTime(trimOutEl.value);
+      }
+      trimInDisplay.textContent = formatTime(v);
+    });
+    trimOutEl.addEventListener('input', ()=>{
+      let v = parseFloat(trimOutEl.value);
+      if (v < parseFloat(trimInEl.value)) {
+        // pull start back to match end
+        trimInEl.value = v;
+        trimInDisplay.textContent = formatTime(trimInEl.value);
+      }
+      trimOutDisplay.textContent = formatTime(v);
+    });
+
+    // Export via drawing video frames to canvas and recording canvas stream
+    exportBtn.addEventListener('click', async () => {
+      if (!video.src) { alert('Please choose a video file first.'); return; }
+
+      const start = parseFloat(trimInEl.value) || 0;
+      const end = parseFloat(trimOutEl.value) || video.duration;
+      if (start >= end) { alert('Trim In must be less than Trim Out'); return; }
+
+      exportBtn.disabled = true;
+      status.textContent = 'Preparing export...';
+
+      // ensure canvas matches video size
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 360;
+
+      // drawing loop
+      let drawActive = true;
+      const draw = () => {
+        if (!drawActive) return;
+          // apply filters to canvas draw
+          const b = brightnessEl.value;
+          const c = contrastEl.value;
+          const s = saturationEl.value;
+          const sep = sepiaEl.value;
+          const gray = grayscaleEl.value;
+          const inv = invertEl.value;
+          const h = hueEl.value;
+          const bl = blurEl.value;
+          const op = opacityEl.value;
+          const filterParts = [];
+          filterParts.push(`brightness(${b}%)`);
+          filterParts.push(`contrast(${c}%)`);
+          filterParts.push(`saturate(${s}%)`);
+          if (sep > 0) filterParts.push(`sepia(${sep}%)`);
+          if (gray > 0) filterParts.push(`grayscale(${gray}%)`);
+          if (inv > 0) filterParts.push(`invert(${inv}%)`);
+          if (h != 0) filterParts.push(`hue-rotate(${h}deg)`);
+          if (bl > 0) filterParts.push(`blur(${bl}px)`);
+          ctx.filter = filterParts.join(' ');
+          ctx.globalAlpha = (op/100);
+    try { ctx.drawImage(video, 0, 0, canvas.width, canvas.height); } catch (err) { /* ignore until ready */ }
+    // draw text overlay each frame so exported video includes it
+    try { drawTextOverlay(); } catch(e) {}
+        requestAnimationFrame(draw);
+      };
+
+          // after drawing video frame, draw the text overlay (match position/scale)
+          // we do this here by inserting a small wrapper to draw runs after the image
+          const drawTextOverlay = () => {
+            try {
+              // compute scale from displayed video to source video (canvas)
+              const videoRect = video.getBoundingClientRect();
+              const scaleX = canvas.width / (videoRect.width || canvas.width);
+              const scaleY = canvas.height / (videoRect.height || canvas.height);
+              // overlayPos is in pixels relative to displayed video
+              const x = overlayPos.x * scaleX;
+              const y = overlayPos.y * scaleY + (parseInt(textSizeEl.value,10) || 36);
+              // parse the contenteditable into runs with color
+              const runs = [];
+              function pushRun(text, color) { if (!text) return; runs.push({text, color}); }
+              // walk child nodes
+              textOverlay.childNodes.forEach(node => {
+                if (node.nodeType === Node.TEXT_NODE) pushRun(node.textContent, window.getComputedStyle(textOverlay).color || '#fff');
+                else if (node.nodeType === Node.ELEMENT_NODE) {
+                  const c = window.getComputedStyle(node).color || window.getComputedStyle(textOverlay).color;
+                  pushRun(node.textContent, c);
+                }
+              });
+              // draw runs sequentially
+              ctx.save();
+              ctx.textBaseline = 'top';
+              ctx.font = `${parseInt(textSizeEl.value,10)||36}px sans-serif`;
+              let cx = x;
+              for (const run of runs) {
+                ctx.fillStyle = run.color || '#fff';
+                // draw whole run; measure width and advance
+                const parts = (run.text || '').split('\n');
+                for (let i=0;i<parts.length;i++) {
+                  const part = parts[i];
+                  ctx.fillText(part, cx, y);
+                  const w = ctx.measureText(part).width;
+                  cx += w;
+                  if (i < parts.length - 1) {
+                    // newline -> move to next line start
+                    cx = x;
+                    y += parseInt(textSizeEl.value,10) || 36;
+                  }
+                }
+              }
+              ctx.restore();
+            } catch (e) { /* ignore drawing errors */ }
+          };
+
+      // capture the canvas stream
+      const stream = canvas.captureStream(30); // 30fps
+      const recordedChunks = [];
+      let options = { mimeType: 'video/webm;codecs=vp9' };
+      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        options = { mimeType: 'video/webm;codecs=vp8' };
+        if (!MediaRecorder.isTypeSupported(options.mimeType)) options = { mimeType: 'video/webm' };
+      }
+
+      let recorder;
+      try {
+        recorder = new MediaRecorder(stream, options);
+      } catch (e) {
+        alert('Recording not supported in this browser. Try Chrome/Edge.');
+        exportBtn.disabled = false;
+        status.textContent = '';
+        return;
+      }
+
+      recorder.ondataavailable = e => { if (e.data && e.data.size) recordedChunks.push(e.data); };
+
+      recorder.onstop = () => {
+        drawActive = false;
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        downloadAnchor.href = url;
+        downloadAnchor.download = 'trimmed.webm';
+        downloadAnchor.style.display = 'inline';
+        downloadAnchor.textContent = 'Download trimmed.webm';
+        // auto-click for convenience
+        downloadAnchor.click();
+        status.textContent = 'Export complete';
+        exportBtn.disabled = false;
+      };
+
+      // start drawing and recording
+      drawActive = true;
+      draw();
+      recordedChunks.length = 0;
+      try { recorder.start(); } catch (err) { console.error(err); }
+
+      // start playback at start time and play
+      video.currentTime = start;
+      await video.play();
+      playPause.textContent = 'Pause';
+      status.textContent = 'Recording...';
+
+      const onTime = () => {
+        if (video.currentTime >= end - 0.05) { // small epsilon
+          video.pause();
+          playPause.textContent = 'Play';
+          try { recorder.stop(); } catch (e) { console.warn(e); }
+          video.removeEventListener('timeupdate', onTime);
+        }
+      };
+
+      video.addEventListener('timeupdate', onTime);
+
+    });
+
+    // Fast export without playing back the video: use ffmpeg.wasm to trim/re-encode
+    async function ensureFFmpeg() {
+      if (window._ffmpegInstance) return window._ffmpegInstance;
+      status.textContent = 'Loading ffmpeg (may take a moment)…';
+      if (typeof FFmpeg === 'undefined') {
+        await new Promise((res, rej) => {
+          const s = document.createElement('script');
+          s.src = 'https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js';
+          s.onload = res; s.onerror = rej; document.head.appendChild(s);
+        }).catch((e) => { throw new Error('Failed to load ffmpeg script'); });
+      }
+      const { createFFmpeg, fetchFile } = FFmpeg;
+      const ffmpeg = createFFmpeg({ log: false });
+      await ffmpeg.load();
+      window._ffmpegInstance = { ffmpeg, fetchFile };
+      status.textContent = 'ffmpeg ready';
+      return window._ffmpegInstance;
+    }
+
+    exportNoPlayBtn.addEventListener('click', async () => {
+      if (!fileURL) { alert('Please choose a video first.'); return; }
+
+      const start = parseFloat(trimInEl.value) || 0;
+      const end = parseFloat(trimOutEl.value) || video.duration;
+      if (start >= end) { alert('Trim In must be less than Trim Out'); return; }
+
+      exportNoPlayBtn.disabled = true;
+      status.textContent = 'Preparing fast export…';
+
+      try {
+        const { ffmpeg, fetchFile } = await ensureFFmpeg();
+        // write input file
+        const ext = (fileURL.split('.').pop() || 'mp4').split('?')[0];
+        const inName = `input.${ext}`;
+        const outName = `output.${ext}`;
+        // fetchFile accepts a File or URL; prefer original File from file input if available
+        const inputFile = fileEl.files && fileEl.files[0] ? fileEl.files[0] : await fetch(fileURL).then(r=>r.blob());
+        ffmpeg.FS('writeFile', inName, await fetchFile(inputFile));
+
+        // Build ffmpeg video filter string from sliders (best-effort mapping)
+        const vf = [];
+        const b = parseInt(brightnessEl.value); // 0-200
+        const c = parseInt(contrastEl.value);   // 0-200
+        const s = parseInt(saturationEl.value); // 0-300
+        const sep = parseInt(sepiaEl.value);    // 0-100
+        const gray = parseInt(grayscaleEl.value);
+        const inv = parseInt(invertEl.value);
+        const h = parseInt(hueEl.value);
+        const bl = parseFloat(blurEl.value);
+
+        // eq filter: brightness (-1..1) and contrast (multiplier)
+        const bVal = ((b - 100) / 100).toFixed(2);
+        const cVal = (c / 100).toFixed(2);
+        const sVal = (s / 100).toFixed(2);
+        vf.push(`eq=brightness=${bVal}:contrast=${cVal}:saturation=${sVal}`);
+        if (h !== 0) vf.push(`hue=h=${h}`);
+        if (sep > 0) {
+          // approximate sepia using colorchannelmixer
+          vf.push('colorchannelmixer=.393:.769:.189:0:.349:.686:.168:0:.272:.534:.131');
+        }
+        if (gray > 50) vf.push('format=gray');
+        if (inv > 50) vf.push('negate');
+        if (bl > 0.1) vf.push(`boxblur=lr=${Math.max(1,bl)}`);
+
+        const vfArg = vf.length ? vf.join(',') : null;
+
+        // Try fast stream copy when no visual filters set
+        const noVisualChanges = (b===100 && c===100 && s===100 && sep===0 && gray===0 && inv===0 && h===0 && bl===0);
+
+        if (noVisualChanges) {
+          status.textContent = 'Running fast stream-copy (no visual changes)…';
+          await ffmpeg.run('-ss', `${start}`, '-to', `${end}`, '-i', inName, '-c', 'copy', outName);
+        } else {
+          status.textContent = 'Re-encoding with filters (may be slower)…';
+          const args = ['-ss', `${start}`, '-to', `${end}`, '-i', inName];
+          if (vfArg) { args.push('-vf', vfArg); }
+          // output: try to keep same container but re-encode to h264/aac for broad compat
+          args.push('-c:v', 'libx264', '-preset', 'fast', '-crf', '23', '-c:a', 'aac', outName);
+          await ffmpeg.run(...args);
+        }
+
+        const data = ffmpeg.FS('readFile', outName);
+        const blob = new Blob([data.buffer], { type: 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = `trimmed.${ext}`; a.click();
+        status.textContent = 'Fast export complete';
+      } catch (err) {
+        console.error(err);
+        alert('Fast export failed: ' + (err && err.message ? err.message : err));
+        status.textContent = 'Fast export failed';
+      } finally {
+        exportNoPlayBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

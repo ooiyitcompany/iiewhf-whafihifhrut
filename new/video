@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Video Editor — MVP</title>
+  <style>
+    body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial; max-width: 900px; margin: 24px auto; padding: 0 16px; }
+    h1 { font-size: 1.25rem; }
+    .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    label { font-size:0.9rem; }
+    .controls { margin-top:12px; display:grid; gap:12px; }
+    video { width:100%; max-height:480px; background:#000; }
+    .sliders { display:flex; gap:12px; align-items:center; }
+    .slider { display:flex; flex-direction:column; align-items:flex-start; }
+    button { padding:8px 12px; }
+    #canvas { display:none; }
+    .muted { opacity:0.6; }
+    .note { font-size:0.85rem; color:#444; margin-top:8px }
+  </style>
+</head>
+<body>
+  <h1>Video Editor (MVP)</h1>
+  <p class="note">This page is a standalone lightweight video editor. It does not modify your existing files. Export produces a WebM file (best in Chromium browsers).</p>
+
+  <div class="controls">
+    <input id="file" type="file" accept="video/*" />
+
+    <video id="video" controls crossorigin="anonymous"></video>
+
+    <div class="row">
+      <button id="playPause">Play</button>
+      <label>Current: <span id="current">0.00</span>s</label>
+      <label>Duration: <span id="duration">0.00</span>s</label>
+    </div>
+
+    <div class="row">
+      <label>Trim In (s): <input id="trimIn" type="number" step="0.1" min="0" value="0" style="width:90px" /></label>
+      <button id="setTrimIn">Set from current</button>
+      <label>Trim Out (s): <input id="trimOut" type="number" step="0.1" min="0" value="0" style="width:90px" /></label>
+      <button id="setTrimOut">Set from current</button>
+    </div>
+
+    <div>
+      <strong>Filters (preview & export)</strong>
+      <div class="sliders">
+        <div class="slider"><label>Brightness</label><input id="brightness" type="range" min="50" max="200" value="100" /></div>
+        <div class="slider"><label>Contrast</label><input id="contrast" type="range" min="50" max="200" value="100" /></div>
+        <div class="slider"><label>Saturation</label><input id="saturation" type="range" min="0" max="300" value="100" /></div>
+      </div>
+    </div>
+
+    <div class="row">
+      <button id="export">Export Trimmed Clip</button>
+      <span id="status"></span>
+    </div>
+
+    <a id="downloadAnchor" style="display:none"></a>
+  </div>
+
+  <canvas id="canvas"></canvas>
+
+  <script>
+    const fileEl = document.getElementById('file');
+    const video = document.getElementById('video');
+    const playPause = document.getElementById('playPause');
+    const currentEl = document.getElementById('current');
+    const durationEl = document.getElementById('duration');
+    const trimInEl = document.getElementById('trimIn');
+    const trimOutEl = document.getElementById('trimOut');
+    const setTrimIn = document.getElementById('setTrimIn');
+    const setTrimOut = document.getElementById('setTrimOut');
+    const brightnessEl = document.getElementById('brightness');
+    const contrastEl = document.getElementById('contrast');
+    const saturationEl = document.getElementById('saturation');
+    const exportBtn = document.getElementById('export');
+    const status = document.getElementById('status');
+    const downloadAnchor = document.getElementById('downloadAnchor');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    let fileURL = null;
+
+    function updateFilterStyle() {
+      const b = brightnessEl.value;
+      const c = contrastEl.value;
+      const s = saturationEl.value;
+      video.style.filter = `brightness(${b}%) contrast(${c}%) saturate(${s}%)`;
+    }
+
+    brightnessEl.addEventListener('input', updateFilterStyle);
+    contrastEl.addEventListener('input', updateFilterStyle);
+    saturationEl.addEventListener('input', updateFilterStyle);
+
+    fileEl.addEventListener('change', e => {
+      const f = e.target.files && e.target.files[0];
+      if (!f) return;
+      if (fileURL) URL.revokeObjectURL(fileURL);
+      fileURL = URL.createObjectURL(f);
+      video.src = fileURL;
+      status.textContent = '';
+    });
+
+    video.addEventListener('loadedmetadata', () => {
+      durationEl.textContent = video.duration.toFixed(2);
+      trimInEl.max = video.duration.toFixed(2);
+      trimOutEl.max = video.duration.toFixed(2);
+      trimOutEl.value = video.duration.toFixed(2);
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 360;
+    });
+
+    video.addEventListener('timeupdate', () => {
+      currentEl.textContent = video.currentTime.toFixed(2);
+    });
+
+    playPause.addEventListener('click', () => {
+      if (video.paused) { video.play(); playPause.textContent = 'Pause'; }
+      else { video.pause(); playPause.textContent = 'Play'; }
+    });
+
+    setTrimIn.addEventListener('click', () => { trimInEl.value = video.currentTime.toFixed(2); });
+    setTrimOut.addEventListener('click', () => { trimOutEl.value = video.currentTime.toFixed(2); });
+
+    // Export via drawing video frames to canvas and recording canvas stream
+    exportBtn.addEventListener('click', async () => {
+      if (!video.src) { alert('Please choose a video file first.'); return; }
+
+      const start = parseFloat(trimInEl.value) || 0;
+      const end = parseFloat(trimOutEl.value) || video.duration;
+      if (start >= end) { alert('Trim In must be less than Trim Out'); return; }
+
+      exportBtn.disabled = true;
+      status.textContent = 'Preparing export...';
+
+      // ensure canvas matches video size
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 360;
+
+      // drawing loop
+      let drawActive = true;
+      const draw = () => {
+        if (!drawActive) return;
+        // apply filters to canvas draw
+        const b = brightnessEl.value;
+        const c = contrastEl.value;
+        const s = saturationEl.value;
+        ctx.filter = `brightness(${b}%) contrast(${c}%) saturate(${s}%)`;
+        try { ctx.drawImage(video, 0, 0, canvas.width, canvas.height); } catch (err) { /* ignore until ready */ }
+        requestAnimationFrame(draw);
+      };
+
+      // capture the canvas stream
+      const stream = canvas.captureStream(30); // 30fps
+      const recordedChunks = [];
+      let options = { mimeType: 'video/webm;codecs=vp9' };
+      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        options = { mimeType: 'video/webm;codecs=vp8' };
+        if (!MediaRecorder.isTypeSupported(options.mimeType)) options = { mimeType: 'video/webm' };
+      }
+
+      let recorder;
+      try {
+        recorder = new MediaRecorder(stream, options);
+      } catch (e) {
+        alert('Recording not supported in this browser. Try Chrome/Edge.');
+        exportBtn.disabled = false;
+        status.textContent = '';
+        return;
+      }
+
+      recorder.ondataavailable = e => { if (e.data && e.data.size) recordedChunks.push(e.data); };
+
+      recorder.onstop = () => {
+        drawActive = false;
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        downloadAnchor.href = url;
+        downloadAnchor.download = 'trimmed.webm';
+        downloadAnchor.style.display = 'inline';
+        downloadAnchor.textContent = 'Download trimmed.webm';
+        // auto-click for convenience
+        downloadAnchor.click();
+        status.textContent = 'Export complete';
+        exportBtn.disabled = false;
+      };
+
+      // start drawing and recording
+      drawActive = true;
+      draw();
+      recordedChunks.length = 0;
+      try { recorder.start(); } catch (err) { console.error(err); }
+
+      // start playback at start time and play
+      video.currentTime = start;
+      await video.play();
+      playPause.textContent = 'Pause';
+      status.textContent = 'Recording...';
+
+      const onTime = () => {
+        if (video.currentTime >= end - 0.05) { // small epsilon
+          video.pause();
+          playPause.textContent = 'Play';
+          try { recorder.stop(); } catch (e) { console.warn(e); }
+          video.removeEventListener('timeupdate', onTime);
+        }
+      };
+
+      video.addEventListener('timeupdate', onTime);
+
+    });
+  </script>
+</body>
+</html>

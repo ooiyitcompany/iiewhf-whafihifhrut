@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>AI Photo Edit — Enhancer</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',Tahoma,Arial,sans-serif}
+  body{background:linear-gradient(135deg,#081226,#0f1b2e);min-height:100vh;color:#fff;display:flex;flex-direction:column}
+  .top-bar{position:fixed;top:0;left:0;right:0;height:60px;background:rgba(0,0,0,.6);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:space-between;padding:0 1rem;z-index:120}
+  .back-btn{background:none;border:none;color:#fff;font-size:1.4rem;cursor:pointer}
+  .title{font-size:1.05rem;background:linear-gradient(45deg,#6b9fff,#ff69b4);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .container{margin-top:60px;padding:1rem;display:flex;gap:1rem;align-items:flex-start;justify-content:center;flex-wrap:wrap}
+  .canvas-wrap{background:rgba(255,255,255,0.03);border-radius:12px;padding:12px;display:flex;flex-direction:column;align-items:center;width:45%;min-width:320px}
+  canvas{max-width:100%;border-radius:8px;background:#000}
+  .btn{background:linear-gradient(45deg,#6b9fff,#ff69b4);border:none;color:#fff;padding:8px 12px;border-radius:8px;cursor:pointer;margin-top:1rem}
+  .status{margin-top:10px;color:rgba(255,255,255,0.8);font-size:.9rem}
+  .note{color:rgba(255,255,255,0.6);font-size:.85rem;margin-top:1rem;text-align:center;max-width:700px;margin-inline:auto}
+</style>
+</head>
+<body>
+  <div class="top-bar">
+    <button class="back-btn" onclick="history.back()">←</button>
+    <div class="title">AI Enhancer</div>
+    <div style="width:24px"></div>
+  </div>
+
+  <div class="container">
+    <div class="canvas-wrap">
+      <div>Original</div>
+      <canvas id="origCanvas"></canvas>
+    </div>
+    <div class="canvas-wrap">
+      <div>Enhanced</div>
+      <canvas id="enhCanvas"></canvas>
+    </div>
+  </div>
+
+  <div style="text-align:center;margin-top:1rem">
+    <button class="btn" id="enhanceBtn">Enhance</button>
+    <button class="btn" id="saveBtn">Save</button>
+    <div class="status" id="status">Ready</div>
+  </div>
+
+  <div class="note">
+    This page performs client-side photo enhancement using TensorFlow.js.
+    It uses a lightweight image restoration / super-resolution model to reduce noise and increase sharpness.
+  </div>
+
+  <!-- TensorFlow -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.9.0/dist/tf.min.js"></script>
+  <!-- Example super-resolution model -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/esrgan-tfjs"></script>
+
+  <script>
+    const origCanvas = document.getElementById('origCanvas');
+    const enhCanvas = document.getElementById('enhCanvas');
+    const statusEl = document.getElementById('status');
+    const enhanceBtn = document.getElementById('enhanceBtn');
+    const saveBtn = document.getElementById('saveBtn');
+    const ctx = origCanvas.getContext('2d');
+
+    let model, baseImg = new Image(), enhancedImgData = null;
+
+    // Load image from localStorage
+    window.addEventListener('load', async ()=>{
+      const data = localStorage.getItem('editImage');
+      if(!data){ statusEl.textContent = 'No image found in editor. Please open editor first.'; return; }
+      baseImg.src = data;
+      baseImg.onload = ()=>{ 
+        origCanvas.width = baseImg.naturalWidth;
+        origCanvas.height = baseImg.naturalHeight;
+        enhCanvas.width = baseImg.naturalWidth;
+        enhCanvas.height = baseImg.naturalHeight;
+        ctx.drawImage(baseImg,0,0);
+        statusEl.textContent = 'Ready to enhance.';
+      };
+    });
+
+    // Load the ESRGAN (super-resolution) model
+    async function loadModel(){
+      if(model) return model;
+      statusEl.textContent = 'Loading TensorFlow model...';
+      model = await window.esrgan.load();
+      statusEl.textContent = 'Model loaded.';
+      return model;
+    }
+
+    // Enhance image
+    enhanceBtn.addEventListener('click', async ()=>{
+      if(!baseImg.src){ statusEl.textContent = 'No image loaded.'; return; }
+      await loadModel();
+      statusEl.textContent = 'Enhancing... (this may take a few seconds)';
+      await tf.nextFrame();
+
+      const inputTensor = tf.browser.fromPixels(baseImg).toFloat().div(255);
+      const enhanced = await model.predict(inputTensor);
+      const clamped = enhanced.clipByValue(0,1);
+
+      await tf.browser.toPixels(clamped, enhCanvas);
+
+      inputTensor.dispose(); enhanced.dispose(); clamped.dispose();
+      enhancedImgData = enhCanvas.toDataURL('image/png');
+      statusEl.textContent = 'Enhancement complete.';
+    });
+
+    // Save enhanced image
+    saveBtn.addEventListener('click', ()=>{
+      if(!enhancedImgData){ alert('Please run Enhance first.'); return; }
+      localStorage.setItem('editImage', enhancedImgData);
+      saveBtn.textContent = 'Saved ✓';
+      setTimeout(()=> saveBtn.textContent = 'Save', 1000);
+    });
+  </script>
+</body>
+</html>

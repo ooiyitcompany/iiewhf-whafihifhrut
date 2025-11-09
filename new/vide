@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Video Editor — MVP</title>
+  <style>
+  * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    body {
+      background: linear-gradient(135deg, #1a1a1a, #2d2d2d);
+      min-height: 100vh;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+    }
+
+    .top-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 60px;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(10px);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 1rem;
+      z-index: 100;
+    }
+
+    .top-bar h1 {
+      font-size: 1.1rem;
+      background: linear-gradient(45deg, #6b9fff, #ff69b4);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .container {
+      margin-top: 60px;
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 1rem;
+    }
+
+    .media-wrap {
+      width: 100%;
+      max-width: 900px;
+      background: rgba(0,0,0,0.2);
+      padding: 18px;
+      border-radius: 12px;
+      box-shadow: 0 6px 30px rgba(0,0,0,0.6);
+    }
+
+    video { width:100%; max-height:560px; background:#000; border-radius:8px }
+
+    .controls { margin-top:12px; display:grid; gap:12px; }
+    .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    label { font-size:0.9rem; }
+    .sliders { display:flex; gap:12px; align-items:center; }
+    .slider { display:flex; flex-direction:column; align-items:flex-start; }
+    button { padding:8px 12px; border-radius:8px; border: none; cursor: pointer; }
+    .save-btn {
+      position: fixed;
+      bottom: calc(1rem + 100px);
+      right: 1rem;
+      background: linear-gradient(45deg, #6b9fff, #ff69b4);
+      color: white;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+      cursor: pointer;
+      z-index: 150;
+    }
+
+    .bottom-tools {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(10px);
+      padding: 1rem;
+      z-index: 120;
+    }
+
+    #canvas { display:none; }
+    .note { font-size:0.85rem; color:#ddd; margin-top:8px }
+  </style>
+</head>
+<body>
+  <div class="top-bar">
+    <button class="back-btn" onclick="window.location.href='index.html'">←</button>
+    <h1>Video Editor</h1>
+    <div style="width:48px"></div>
+  </div>
+
+  <div class="container">
+    <div class="media-wrap">
+      <p class="note">This is a lightweight video editor. Export produces a WebM file (best in Chromium browsers); use the export button to download.</p>
+      <div class="controls">
+        <input id="file" type="file" accept="video/*" />
+
+        <video id="video" controls crossorigin="anonymous"></video>
+
+        <div class="row">
+          <button id="playPause">Play</button>
+          <label>Current: <span id="current">0.00</span>s</label>
+          <label>Duration: <span id="duration">0.00</span>s</label>
+        </div>
+
+        <div class="row">
+          <label>Trim In (s): <input id="trimIn" type="number" step="0.1" min="0" value="0" style="width:90px" /></label>
+          <button id="setTrimIn">Set from current</button>
+          <label>Trim Out (s): <input id="trimOut" type="number" step="0.1" min="0" value="0" style="width:90px" /></label>
+          <button id="setTrimOut">Set from current</button>
+        </div>
+
+        <div>
+          <strong>Filters (preview & export)</strong>
+          <div class="sliders" style="flex-wrap:wrap;">
+            <div class="slider"><label>Brightness</label><input id="brightness" type="range" min="0" max="200" value="100" /></div>
+            <div class="slider"><label>Contrast</label><input id="contrast" type="range" min="0" max="200" value="100" /></div>
+            <div class="slider"><label>Saturation</label><input id="saturation" type="range" min="0" max="300" value="100" /></div>
+            <div class="slider"><label>Sepia</label><input id="sepia" type="range" min="0" max="100" value="0" /></div>
+            <div class="slider"><label>Grayscale</label><input id="grayscale" type="range" min="0" max="100" value="0" /></div>
+            <div class="slider"><label>Invert</label><input id="invert" type="range" min="0" max="100" value="0" /></div>
+            <div class="slider"><label>Hue (°)</label><input id="hue" type="range" min="0" max="360" value="0" /></div>
+            <div class="slider"><label>Blur (px)</label><input id="blur" type="range" min="0" max="10" value="0" step="0.5" /></div>
+            <div class="slider"><label>Opacity</label><input id="opacity" type="range" min="0" max="100" value="100" /></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <button id="export">Export Trimmed Clip</button>
+          <span id="status"></span>
+        </div>
+
+        <a id="downloadAnchor" style="display:none"></a>
+      </div>
+    </div>
+  </div>
+
+  <canvas id="canvas"></canvas>
+
+  <button class="save-btn" title="Export" onclick="document.getElementById('export').click()">⤓</button>
+
+  <script>
+    /* @ts-nocheck */
+    const fileEl = document.getElementById('file');
+    const video = document.getElementById('video');
+    const playPause = document.getElementById('playPause');
+    const currentEl = document.getElementById('current');
+    const durationEl = document.getElementById('duration');
+    const trimInEl = document.getElementById('trimIn');
+    const trimOutEl = document.getElementById('trimOut');
+    const setTrimIn = document.getElementById('setTrimIn');
+    const setTrimOut = document.getElementById('setTrimOut');
+  const brightnessEl = document.getElementById('brightness');
+  const contrastEl = document.getElementById('contrast');
+  const saturationEl = document.getElementById('saturation');
+  const sepiaEl = document.getElementById('sepia');
+  const grayscaleEl = document.getElementById('grayscale');
+  const invertEl = document.getElementById('invert');
+  const hueEl = document.getElementById('hue');
+  const blurEl = document.getElementById('blur');
+  const opacityEl = document.getElementById('opacity');
+    const exportBtn = document.getElementById('export');
+    const status = document.getElementById('status');
+    const downloadAnchor = document.getElementById('downloadAnchor');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    let fileURL = null;
+
+    function updateFilterStyle() {
+      const b = brightnessEl.value;
+      const c = contrastEl.value;
+      const s = saturationEl.value;
+      const sep = sepiaEl.value;
+      const gray = grayscaleEl.value;
+      const inv = invertEl.value;
+      const h = hueEl.value;
+      const bl = blurEl.value;
+      const op = opacityEl.value;
+      // build CSS filter string
+      const parts = [];
+      parts.push(`brightness(${b}%)`);
+      parts.push(`contrast(${c}%)`);
+      parts.push(`saturate(${s}%)`);
+      if (sep > 0) parts.push(`sepia(${sep}%)`);
+      if (gray > 0) parts.push(`grayscale(${gray}%)`);
+      if (inv > 0) parts.push(`invert(${inv}%)`);
+      if (h != 0) parts.push(`hue-rotate(${h}deg)`);
+      if (bl > 0) parts.push(`blur(${bl}px)`);
+      video.style.filter = parts.join(' ');
+      video.style.opacity = (op/100).toString();
+    }
+
+    [brightnessEl, contrastEl, saturationEl, sepiaEl, grayscaleEl, invertEl, hueEl, blurEl, opacityEl].forEach(el=>el.addEventListener('input', updateFilterStyle));
+
+    fileEl.addEventListener('change', e => {
+      const f = e.target.files && e.target.files[0];
+      if (!f) return;
+      if (fileURL) URL.revokeObjectURL(fileURL);
+      fileURL = URL.createObjectURL(f);
+      video.src = fileURL;
+      status.textContent = '';
+    });
+
+    video.addEventListener('loadedmetadata', () => {
+      durationEl.textContent = video.duration.toFixed(2);
+      trimInEl.max = video.duration.toFixed(2);
+      trimOutEl.max = video.duration.toFixed(2);
+      trimOutEl.value = video.duration.toFixed(2);
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 360;
+    });
+
+    video.addEventListener('timeupdate', () => {
+      currentEl.textContent = video.currentTime.toFixed(2);
+    });
+
+    playPause.addEventListener('click', () => {
+      if (video.paused) { video.play(); playPause.textContent = 'Pause'; }
+      else { video.pause(); playPause.textContent = 'Play'; }
+    });
+
+    setTrimIn.addEventListener('click', () => { trimInEl.value = video.currentTime.toFixed(2); });
+    setTrimOut.addEventListener('click', () => { trimOutEl.value = video.currentTime.toFixed(2); });
+
+    // Export via drawing video frames to canvas and recording canvas stream
+    exportBtn.addEventListener('click', async () => {
+      if (!video.src) { alert('Please choose a video file first.'); return; }
+
+      const start = parseFloat(trimInEl.value) || 0;
+      const end = parseFloat(trimOutEl.value) || video.duration;
+      if (start >= end) { alert('Trim In must be less than Trim Out'); return; }
+
+      exportBtn.disabled = true;
+      status.textContent = 'Preparing export...';
+
+      // ensure canvas matches video size
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 360;
+
+      // drawing loop
+      let drawActive = true;
+      const draw = () => {
+        if (!drawActive) return;
+          // apply filters to canvas draw
+          const b = brightnessEl.value;
+          const c = contrastEl.value;
+          const s = saturationEl.value;
+          const sep = sepiaEl.value;
+          const gray = grayscaleEl.value;
+          const inv = invertEl.value;
+          const h = hueEl.value;
+          const bl = blurEl.value;
+          const op = opacityEl.value;
+          const filterParts = [];
+          filterParts.push(`brightness(${b}%)`);
+          filterParts.push(`contrast(${c}%)`);
+          filterParts.push(`saturate(${s}%)`);
+          if (sep > 0) filterParts.push(`sepia(${sep}%)`);
+          if (gray > 0) filterParts.push(`grayscale(${gray}%)`);
+          if (inv > 0) filterParts.push(`invert(${inv}%)`);
+          if (h != 0) filterParts.push(`hue-rotate(${h}deg)`);
+          if (bl > 0) filterParts.push(`blur(${bl}px)`);
+          ctx.filter = filterParts.join(' ');
+          ctx.globalAlpha = (op/100);
+          try { ctx.drawImage(video, 0, 0, canvas.width, canvas.height); } catch (err) { /* ignore until ready */ }
+        requestAnimationFrame(draw);
+      };
+
+      // capture the canvas stream
+      const stream = canvas.captureStream(30); // 30fps
+      const recordedChunks = [];
+      let options = { mimeType: 'video/webm;codecs=vp9' };
+      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        options = { mimeType: 'video/webm;codecs=vp8' };
+        if (!MediaRecorder.isTypeSupported(options.mimeType)) options = { mimeType: 'video/webm' };
+      }
+
+      let recorder;
+      try {
+        recorder = new MediaRecorder(stream, options);
+      } catch (e) {
+        alert('Recording not supported in this browser. Try Chrome/Edge.');
+        exportBtn.disabled = false;
+        status.textContent = '';
+        return;
+      }
+
+      recorder.ondataavailable = e => { if (e.data && e.data.size) recordedChunks.push(e.data); };
+
+      recorder.onstop = () => {
+        drawActive = false;
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        downloadAnchor.href = url;
+        downloadAnchor.download = 'trimmed.webm';
+        downloadAnchor.style.display = 'inline';
+        downloadAnchor.textContent = 'Download trimmed.webm';
+        // auto-click for convenience
+        downloadAnchor.click();
+        status.textContent = 'Export complete';
+        exportBtn.disabled = false;
+      };
+
+      // start drawing and recording
+      drawActive = true;
+      draw();
+      recordedChunks.length = 0;
+      try { recorder.start(); } catch (err) { console.error(err); }
+
+      // start playback at start time and play
+      video.currentTime = start;
+      await video.play();
+      playPause.textContent = 'Pause';
+      status.textContent = 'Recording...';
+
+      const onTime = () => {
+        if (video.currentTime >= end - 0.05) { // small epsilon
+          video.pause();
+          playPause.textContent = 'Play';
+          try { recorder.stop(); } catch (e) { console.warn(e); }
+          video.removeEventListener('timeupdate', onTime);
+        }
+      };
+
+      video.addEventListener('timeupdate', onTime);
+
+    });
+  </script>
+</body>
+</html>
