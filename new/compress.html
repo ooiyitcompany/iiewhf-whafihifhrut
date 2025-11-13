@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Compress Image</title>
+  <style>
+    body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;background:linear-gradient(135deg,#1a1a1a,#2d2d2d);color:#fff;min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:20px}
+    .card{background:rgba(11,11,11,0.95);padding:18px;border-radius:12px;width:720px;max-width:98vw;box-shadow:0 10px 40px rgba(0,0,0,0.6)}
+    h1{margin:0 0 12px 0;font-size:1.1rem}
+    label{display:block;margin-top:10px;color:#ccc}
+    .row{display:flex;gap:8px;align-items:center;margin-top:8px}
+    input[type="number"], select, input[type="text"]{padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:#fff}
+    .unit{width:120px}
+    .actions{display:flex;gap:8px;margin-top:12px}
+    .btn{padding:10px 12px;border-radius:8px;border:none;cursor:pointer}
+    .primary{background:linear-gradient(45deg,#6b9fff,#ff69b4);color:#fff}
+    .muted{background:rgba(255,255,255,0.04);color:#fff}
+    .note{color:#999;font-size:0.9rem;margin-top:8px}
+    .preview{margin-top:12px;background:#0b0b0b;padding:12px;border-radius:8px;text-align:center}
+    canvas{max-width:100%;border-radius:6px}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Compress Image (Target file size)</h1>
+
+    <label>Target Size</label>
+    <div class="row">
+      <input id="sizeVal" type="number" min="1" value="500" style="width:120px" />
+      <select id="sizeUnit" class="unit">
+        <option value="kb">KB</option>
+        <option value="mb" selected>MB</option>
+        <option value="gb">GB</option>
+      </select>
+      <div style="margin-left:8px;color:#ccc">Target size approximate — compressor will try to match.</div>
+    </div>
+
+    <label>Max Side (optional, px) — leave blank to keep original</label>
+    <div class="row">
+      <input id="maxSide" type="number" min="0" placeholder="e.g. 1920" />
+      <label style="margin-left:8px"><input id="lockAspect" type="checkbox" checked /> Lock Aspect Ratio</label>
+    </div>
+
+    <label>Output Format</label>
+    <div class="row">
+      <select id="outFormat" class="unit">
+        <option value="image/jpeg">JPEG (recommended)</option>
+        <option value="image/png">PNG (no transparency loss)</option>
+      </select>
+      <div style="margin-left:8px;color:#ccc">PNG sizes are less predictable; JPEG is best for size targeting.</div>
+    </div>
+
+    <div class="actions">
+      <button id="startBtn" class="btn primary">Start Compress</button>
+      <button id="downloadBtn" class="btn muted">Download Result</button>
+      <button id="backBtn" class="btn" style="background:rgba(255,255,255,0.03)">Back</button>
+    </div>
+
+    <div class="note">Algorithm: binary-search on JPEG quality to approach the requested filesize. Max 10 iterations.</div>
+
+    <div class="preview">
+      <div style="color:#ccc">Preview</div>
+      <canvas id="previewCanvas" width="480" height="320"></canvas>
+      <div id="resultInfo" style="margin-top:8px;color:#aaa">No result yet</div>
+    </div>
+  </div>
+
+<script>
+  const sizeVal = document.getElementById('sizeVal');
+  const sizeUnit = document.getElementById('sizeUnit');
+  const maxSide = document.getElementById('maxSide');
+  const lockAspect = document.getElementById('lockAspect');
+  const outFormat = document.getElementById('outFormat');
+  const startBtn = document.getElementById('startBtn');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const backBtn = document.getElementById('backBtn');
+  const previewCanvas = document.getElementById('previewCanvas');
+  const pctx = previewCanvas.getContext('2d');
+  const resultInfo = document.getElementById('resultInfo');
+
+  let sourceData = localStorage.getItem('editImage');
+  if(!sourceData){ alert('No image found — open editor first.'); window.location.href='edit.html'; }
+  const img = new Image();
+  img.src = sourceData;
+
+  let lastResultDataUrl = null;
+
+  img.onload = ()=>{
+    renderPreviewFromData(sourceData);
+  };
+
+  function renderPreviewFromData(dataUrl){
+    const tmp = new Image(); tmp.src = dataUrl; tmp.onload = ()=>{
+      const cw = previewCanvas.width; const ch = previewCanvas.height; pctx.clearRect(0,0,cw,ch);
+      // draw centered scaled
+      const ar = tmp.width / tmp.height; const tarAr = cw / ch;
+      let dw = cw, dh = ch;
+      if(ar > tarAr){ dw = cw; dh = Math.round(cw / ar); } else { dh = ch; dw = Math.round(ch * ar); }
+      const x = Math.round((cw - dw)/2); const y = Math.round((ch - dh)/2);
+      pctx.drawImage(tmp, 0,0, tmp.width, tmp.height, x, y, dw, dh);
+    };
+  }
+
+  function unitToBytes(val, unit){
+    const v = Number(val) || 0;
+    switch(unit){ case 'kb': return v * 1024; case 'mb': return v * 1024 * 1024; case 'gb': return v * 1024 * 1024 * 1024; default: return v * 1024 * 1024; }
+  }
+
+  async function dataUrlToBlob(dataUrl){
+    const res = await fetch(dataUrl); return await res.blob();
+  }
+
+  // compress via binary search on quality (JPEG). For PNG we do a single render.
+  async function compressToTarget(targetBytes, maxSidePx){
+    // prepare source resized to maxSide if requested
+    let sourceCanvas = document.createElement('canvas');
+    const sw = img.naturalWidth, sh = img.naturalHeight;
+    let tw = sw, th = sh;
+    if(maxSidePx && maxSidePx > 0){
+      if(Math.max(sw,sh) > maxSidePx){
+        const scale = maxSidePx / Math.max(sw,sh);
+        tw = Math.round(sw * scale); th = Math.round(sh * scale);
+      }
+    }
+    sourceCanvas.width = tw; sourceCanvas.height = th; const sctx = sourceCanvas.getContext('2d'); sctx.drawImage(img,0,0,sw,sh,0,0,tw,th);
+
+    // if PNG or user wants PNG, we cannot do quality search; return PNG blob
+    const fmt = outFormat.value || 'image/jpeg';
+    if(fmt === 'image/png'){
+      const dataUrl = sourceCanvas.toDataURL('image/png');
+      const blob = await dataUrlToBlob(dataUrl);
+      return { dataUrl, blob };
+    }
+
+    // For JPEG, binary search quality
+    let lo = 0.02, hi = 0.98; let best = null; let bestDiff = Infinity;
+    for(let i=0;i<10;i++){
+      const q = (lo + hi) / 2;
+      const dataUrl = sourceCanvas.toDataURL('image/jpeg', q);
+      const blob = await dataUrlToBlob(dataUrl);
+      const size = blob.size;
+      const diff = Math.abs(size - targetBytes);
+      if(diff < bestDiff){ best = { dataUrl, blob, size, quality:q }; bestDiff = diff; }
+      // stop if within 3% or 3KB
+      if(size <= targetBytes * 1.03 && size >= targetBytes * 0.97) break;
+      if(size > targetBytes) { hi = q; } else { lo = q; }
+    }
+    return best;
+  }
+
+  startBtn.addEventListener('click', async ()=>{
+    startBtn.disabled = true; resultInfo.textContent = 'Compressing...';
+    const bytes = unitToBytes(sizeVal.value, sizeUnit.value);
+    const maxSidePx = Number(maxSide.value) || 0;
+    try{
+      const res = await compressToTarget(bytes, maxSidePx);
+      if(!res){ resultInfo.textContent = 'Compression failed'; startBtn.disabled=false; return; }
+      lastResultDataUrl = res.dataUrl;
+      renderPreviewFromData(lastResultDataUrl);
+      resultInfo.textContent = `Result: ${Math.round(res.size/1024)} KB (q=${(res.quality||1).toFixed(2)})`;
+      downloadBtn.disabled = false;
+    } catch(e){ console.error(e); resultInfo.textContent = 'Error: ' + e.message; }
+    startBtn.disabled = false;
+  });
+
+  downloadBtn.addEventListener('click', async ()=>{
+    if(!lastResultDataUrl){ alert('Run compression first'); return; }
+    const fmt = outFormat.value || 'image/jpeg';
+    const filename = 'compressed' + (fmt==='image/png'?'.png':'.jpg');
+    try{
+      if(window.AndroidInterface && typeof window.AndroidInterface.saveBase64File === 'function'){
+        let payload = lastResultDataUrl; if(typeof payload === 'string' && payload.indexOf(',')!==-1 && payload.startsWith('data:')) payload = payload.substring(payload.indexOf(',')+1);
+        window.AndroidInterface.saveBase64File(payload, fmt, filename);
+      } else {
+        const a = document.createElement('a'); a.href = lastResultDataUrl; a.download = filename; a.click();
+      }
+    } catch(e){ const a = document.createElement('a'); a.href = lastResultDataUrl; a.download = filename; a.click(); }
+  });
+
+  backBtn.addEventListener('click', ()=>{ window.location.href = 'edit.html'; });
+</script>
+</body>
+</html>
