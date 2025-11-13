@@ -69,6 +69,8 @@
             align-items: center;
             padding: 1rem;
             background: rgba(0, 0, 0, 0.2);
+            /* leave room for fixed bottom controls so tall images are fully visible */
+            padding-bottom: 180px;
         }
 
         #edited-image {
@@ -76,6 +78,17 @@
             max-height: calc(70vh - 60px);
             border-radius: 10px;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Full-view mode hides chrome and lets image use more vertical space */
+        body.full-view .top-bar,
+        body.full-view .bottom-tools,
+        body.full-view .save-btn,
+        body.full-view #removeWatermarkBtn {
+            display: none !important;
+        }
+        body.full-view #edited-image {
+            max-height: calc(100vh - 20px) !important;
         }
 
         .bottom-tools {
@@ -163,10 +176,24 @@
     </div>
 
     <div class="image-container">
-        <img id="edited-image" alt="Edited Image">
+        <div style="position:relative; display:inline-block">
+            <img id="edited-image" alt="Edited Image">
+            <div id="watermark" style="position:absolute; right:16px; bottom:16px; color:rgba(255,255,255,0.7); font-size:20px; font-weight:600; pointer-events:auto; cursor:pointer; text-shadow:0 1px 2px rgba(0,0,0,0.6);">Ooiy</div>
+        </div>
     </div>
 
     <button class="save-btn" onclick="saveImage()">💾</button>
+    <!-- More button / dropdown -->
+    <div style="position:fixed; bottom: calc(1rem + 160px); right:1rem; z-index:220; display:flex; flex-direction:column; gap:8px; align-items:flex-end">
+        <button id="moreBtn" style="width:48px; height:48px; border-radius:8px; border:none; background:rgba(255,255,255,0.06); color:#fff; cursor:pointer">⋮</button>
+        <div id="moreMenu" style="display:none; background:rgba(11,11,11,0.95); padding:8px; border-radius:8px; box-shadow:0 8px 30px rgba(0,0,0,0.5); min-width:160px">
+            <button id="toggleFullView" style="display:block; width:100%; text-align:left; padding:8px; border:none; background:none; color:#fff; cursor:pointer">Full View</button>
+            <button id="openRemovePage" style="display:block; width:100%; text-align:left; padding:8px; border:none; background:none; color:#fff; cursor:pointer">Remove Watermark</button>
+        </div>
+    </div>
+    
+    <!-- Remove watermark control (kept for backward compatibility, hidden visually if using more menu) -->
+    <button id="removeWatermarkBtn" style="position:fixed; bottom: calc(1rem + 160px); right:70px; width:48px; height:48px; border-radius:8px; border:none; background:rgba(255,255,255,0.06); color:#fff; cursor:pointer; display:none">✖</button>
 
     <div class="bottom-tools">
         <div class="tools-scroll">
@@ -230,6 +257,18 @@
     </div>
 
     <div class="history-stack"></div>
+
+    <!-- Modal: remove watermark prompt -->
+    <div id="removeModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:300; align-items:center; justify-content:center;">
+        <div style="background:#0b0b0b; padding:18px; border-radius:12px; width:320px; color:#fff; box-shadow:0 10px 40px rgba(0,0,0,0.6);">
+            <h3 style="margin:0 0 8px 0">Remove watermark</h3>
+            <p style="color:#ccc; font-size:0.95rem">Watch a short rewarded video to be taken to the Pro page, or cancel. To permanently remove the watermark without watching, open Remove page and tap Remove.</p>
+            <div style="display:flex; gap:8px; margin-top:12px; justify-content:flex-end">
+                <button id="modalCancel" style="background:none;border:1px solid rgba(255,255,255,0.08); color:#fff; padding:8px 10px; border-radius:8px; cursor:pointer">Cancel</button>
+                <button id="modalWatch" style="background:linear-gradient(45deg,#6b9fff,#ff69b4); color:#fff; padding:8px 10px; border-radius:8px; border:none; cursor:pointer">Watch</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Video editor panel (in-page) -->
     <div id="videoPanel" style="display:none; position:fixed; inset:80px 40px 120px 40px; background:rgba(10,10,10,0.95); border-radius:12px; padding:18px; z-index:200; overflow:auto; box-shadow:0 8px 40px rgba(0,0,0,0.6)">
@@ -463,10 +502,43 @@
         }
 
         function saveImage() {
+            // Credit-based watermark removal: user may have N credits to save without watermark
+            const credits = parseInt(localStorage.getItem('ooiy_watermark_credits') || '0', 10);
+            const useCredit = credits > 0;
+
+            const img = document.getElementById('edited-image');
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            ctx.drawImage(img, 0, 0);
+
+            if (!useCredit) {
+                // draw watermark at bottom-right with padding proportional to size
+                const padding = Math.round(canvas.width * 0.02);
+                const fontSize = Math.round(canvas.width * 0.04);
+                ctx.font = `bold ${fontSize}px sans-serif`;
+                ctx.fillStyle = 'rgba(255,255,255,0.75)';
+                ctx.textBaseline = 'bottom';
+                const text = 'Ooiy';
+                const metrics = ctx.measureText(text);
+                const x = canvas.width - metrics.width - padding;
+                const y = canvas.height - padding;
+                ctx.fillText(text, x, y);
+            }
+
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
             const link = document.createElement('a');
             link.download = 'edited-image.jpg';
-            link.href = document.getElementById('edited-image').src;
+            link.href = dataUrl;
             link.click();
+
+            if (useCredit) {
+                // consume one credit
+                localStorage.setItem('ooiy_watermark_credits', String(Math.max(0, credits - 1)));
+                // notify listeners so UI refreshes
+                window.dispatchEvent(new StorageEvent('storage', { key: 'ooiy_watermark_credits', newValue: String(Math.max(0, credits - 1)) }));
+            }
         }
 
         // Detect changes made by tool pages (they write to localStorage then navigate back)
@@ -660,6 +732,86 @@
                 video.addEventListener('timeupdate', onTime);
             });
 
+        })();
+
+        // --- Watermark & remove flow ---
+        (function watermarkInit(){
+            const watermarkEl = document.getElementById('watermark');
+            const removeBtn = document.getElementById('removeWatermarkBtn');
+            // transient cancel button shown when watermark is tapped
+            let transientCancel = null;
+            const modal = document.getElementById('removeModal');
+            const modalCancel = document.getElementById('modalCancel');
+            const modalWatch = document.getElementById('modalWatch');
+
+            function refreshWatermarkVisibility(){
+                const credits = parseInt(localStorage.getItem('ooiy_watermark_credits') || '0', 10);
+                // hide watermark when user has credits available
+                watermarkEl.style.display = (credits > 0) ? 'none' : 'block';
+            }
+            refreshWatermarkVisibility();
+
+            // Clicking the small remove icon opens modal to offer watch or cancel
+            removeBtn.addEventListener('click', ()=>{ modal.style.display = 'flex'; });
+
+            // When user taps watermark, show a small Cancel button and a link to Remove page
+            watermarkEl.addEventListener('click', (e)=>{
+                // create transient cancel button if not present
+                if (transientCancel) return;
+                transientCancel = document.createElement('button');
+                transientCancel.textContent = 'Cancel';
+                transientCancel.style.position = 'absolute';
+                transientCancel.style.right = '16px';
+                transientCancel.style.bottom = '48px';
+                transientCancel.style.padding = '6px 10px';
+                transientCancel.style.borderRadius = '8px';
+                transientCancel.style.border = 'none';
+                transientCancel.style.background = 'rgba(0,0,0,0.6)';
+                transientCancel.style.color = '#fff';
+                transientCancel.style.zIndex = '500';
+                transientCancel.addEventListener('click', ()=>{
+                    // go to remove page (watch reward ads)
+                    window.location.href = 'remove.html';
+                });
+                document.querySelector('.image-container').appendChild(transientCancel);
+                // remove after 4 seconds if untouched
+                setTimeout(()=>{ if (transientCancel && transientCancel.parentNode) transientCancel.parentNode.removeChild(transientCancel); transientCancel = null; }, 4000);
+            });
+            modalCancel.addEventListener('click', ()=>{ modal.style.display = 'none'; });
+
+            // Watch button navigates to pro.html (reward flow handled by app or pro page)
+            modalWatch.addEventListener('click', ()=>{
+                // close modal then redirect to pro.html where the ad/reward is shown
+                modal.style.display = 'none';
+                window.location.href = 'pro.html';
+            });
+
+            // Also, allow remove via remove.html page: if the flag is set in storage, hide watermark
+            window.addEventListener('storage', (e)=>{ if (e.key === 'ooiy_watermark_removed') refreshWatermarkVisibility(); });
+        })();
+
+        // --- More menu / full-view behavior ---
+        (function moreMenuInit(){
+            const moreBtn = document.getElementById('moreBtn');
+            const moreMenu = document.getElementById('moreMenu');
+            const toggleFull = document.getElementById('toggleFullView');
+            const openRemove = document.getElementById('openRemovePage');
+            const goPro = document.getElementById('goPro');
+
+            moreBtn.addEventListener('click', (e)=>{
+                e.stopPropagation();
+                moreMenu.style.display = moreMenu.style.display === 'block' ? 'none' : 'block';
+            });
+            // close menu when clicking elsewhere
+            window.addEventListener('click', ()=>{ moreMenu.style.display = 'none'; });
+            moreMenu.addEventListener('click', (e)=>{ e.stopPropagation(); });
+
+            toggleFull.addEventListener('click', ()=>{
+                document.body.classList.toggle('full-view');
+                moreMenu.style.display = 'none';
+            });
+            openRemove.addEventListener('click', ()=>{ window.location.href = 'remove.html'; });
+            goPro.addEventListener('click', ()=>{ window.location.href = 'pro.html'; });
         })();
     </script>
 </body>

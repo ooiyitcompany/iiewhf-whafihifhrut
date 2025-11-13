@@ -28,7 +28,10 @@
   <div class="top-bar">
     <button class="back-btn" onclick="history.back()">←</button>
     <div class="title">Save Image</div>
-    <div style="width:24px"></div>
+    <div style="display:flex; gap:8px; align-items:center">
+      <div id="creditBalance" style="font-size:0.9rem; color:#ccc;">Credits: 0</div>
+      <div style="width:8px"></div>
+    </div>
   </div>
 
   <div class="preview-area">
@@ -54,6 +57,37 @@
   </div>
 
 <script>
+  // helper: save a dataURL via Android interface when available, else anchor download
+  async function saveDataUrl(dataUrl, mime, filename) {
+    try {
+      if (window.AndroidInterface && typeof window.AndroidInterface.saveBase64File === 'function') {
+        // Android expects the data URL (base64) and mime and filename
+        window.AndroidInterface.saveBase64File(dataUrl, mime, filename);
+      } else {
+        const a = document.createElement('a'); a.href = dataUrl; a.download = filename; a.click();
+      }
+    } catch (e) {
+      console.error('Save failed', e);
+      const a = document.createElement('a'); a.href = dataUrl; a.download = filename; a.click();
+    }
+  }
+
+  function refreshCreditsUI(){
+    const credits = parseInt(localStorage.getItem('ooiy_watermark_credits')||'0',10);
+    document.getElementById('creditBalance').textContent = 'Credits: ' + credits;
+    // require at least 1 credit to unlock the Download Target button (one credit per target download)
+    if (downloadTargetBtn) {
+      if (credits >= 1) {
+        downloadTargetBtn.disabled = false;
+        downloadTargetBtn.classList.remove('locked');
+        downloadTargetBtn.textContent = 'Download Target';
+      } else {
+        downloadTargetBtn.disabled = false; // allow click to go to remove flow
+        downloadTargetBtn.classList.add('locked');
+        downloadTargetBtn.textContent = 'Download Target 🔒';
+      }
+    }
+  }
   const presets = [140,240,360,480,720,1080,1440,2160];
   const resList = document.getElementById('resList');
   const previewCanvas = document.getElementById('previewCanvas');
@@ -131,22 +165,86 @@
     const targetW = Math.round(ar * targetH);
     const canvas = document.createElement('canvas'); canvas.width = targetW; canvas.height = targetH; const cctx = canvas.getContext('2d');
     cctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, targetW, targetH);
+    // watermark credits handling
+    let credits = parseInt(localStorage.getItem('ooiy_watermark_credits')||'0',10);
+    const useCredit = credits > 0;
+    if (!useCredit) {
+      // draw watermark at bottom-right
+      const padding = Math.round(canvas.width * 0.02);
+      const fontSize = Math.round(canvas.width * 0.04);
+      cctx.font = `bold ${fontSize}px sans-serif`;
+      cctx.fillStyle = 'rgba(255,255,255,0.75)';
+      cctx.textBaseline = 'bottom';
+      const text = 'Ooiy';
+      const metrics = cctx.measureText(text);
+      const x = canvas.width - metrics.width - padding;
+      const y = canvas.height - padding;
+      cctx.fillText(text, x, y);
+    }
+
     const mime = formatSelect.value || 'image/jpeg';
     const quality = (mime === 'image/jpeg') ? 0.92 : undefined;
     const dataUrl = mime === 'image/png' ? canvas.toDataURL(mime) : canvas.toDataURL(mime, quality);
-    const a = document.createElement('a'); a.href = dataUrl; a.download = `edited-${targetH}p${mime==='image/png'?'.png':'.jpg'}`; a.click();
+    const filename = `edited-${targetH}p${mime==='image/png'?'.png':'.jpg'}`;
+
+    // consume credit if used
+    if (useCredit) {
+      credits = Math.max(0, credits - 1);
+      localStorage.setItem('ooiy_watermark_credits', String(credits));
+      refreshCreditsUI();
+    }
+
+    saveDataUrl(dataUrl, mime, filename);
   }
 
-  downloadTargetBtn.onclick = ()=>{ downloadRes(selectedTarget); };
+  // Download Target requires 1 credit to actually download; otherwise redirect to remove page
+  downloadTargetBtn.onclick = ()=>{
+    const credits = parseInt(localStorage.getItem('ooiy_watermark_credits')||'0',10);
+    if (credits >= 1) {
+      // consume 1 credit and proceed
+      const newCredits = Math.max(0, credits - 1);
+      localStorage.setItem('ooiy_watermark_credits', String(newCredits));
+      refreshCreditsUI();
+      // perform download at selected target
+      downloadRes(selectedTarget);
+    } else {
+      // navigate to remove.html to watch ads
+      window.location.href = 'remove.html';
+    }
+  };
   downloadBtn.onclick = ()=>{
     // download current displayed size (natural)
     const mime = formatSelect.value || 'image/jpeg';
     const canvas = document.createElement('canvas'); canvas.width = img.naturalWidth; canvas.height = img.naturalHeight; const cctx = canvas.getContext('2d'); cctx.drawImage(img,0,0);
+    // watermark & credits
+    let credits = parseInt(localStorage.getItem('ooiy_watermark_credits')||'0',10);
+    const useCredit = credits > 0;
+    if (!useCredit) {
+      const padding = Math.round(canvas.width * 0.02);
+      const fontSize = Math.round(canvas.width * 0.04);
+      cctx.font = `bold ${fontSize}px sans-serif`;
+      cctx.fillStyle = 'rgba(255,255,255,0.75)';
+      cctx.textBaseline = 'bottom';
+      const text = 'Ooiy';
+      const metrics = cctx.measureText(text);
+      const x = canvas.width - metrics.width - padding;
+      const y = canvas.height - padding;
+      cctx.fillText(text, x, y);
+    }
+    if (useCredit) {
+      credits = Math.max(0, credits - 1);
+      localStorage.setItem('ooiy_watermark_credits', String(credits));
+      refreshCreditsUI();
+    }
+
     const dataUrl = mime === 'image/png' ? canvas.toDataURL(mime) : canvas.toDataURL(mime,0.92);
-    const a = document.createElement('a'); a.href = dataUrl; a.download = `edited-original${mime==='image/png'?'.png':'.jpg'}`; a.click();
+    const filename = `edited-original${mime==='image/png'?'.png':'.jpg'}`;
+    saveDataUrl(dataUrl, mime, filename);
   };
 
   window.addEventListener('resize', ()=>{ if(img.complete) fitPreviewCanvas(); });
+  // refresh credits UI on load
+  refreshCreditsUI();
 </script>
 </body>
 </html>

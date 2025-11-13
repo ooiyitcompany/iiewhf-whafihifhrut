@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Ooiy Pro</title>
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:linear-gradient(135deg,#1a1a1a,#2d2d2d); color:#fff; display:flex; align-items:center; justify-content:center; min-height:100vh; }
+    .card { background:rgba(0,0,0,0.7); padding:20px; border-radius:12px; width:320px; box-shadow:0 8px 30px rgba(0,0,0,0.6); text-align:center }
+    .muted { color:#ccc }
+    .balance { font-size:1.2rem; margin-top:8px }
+    .note { font-size:0.9rem; color:#aaa; margin-top:10px }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2 style="margin:0">Ooiy Pro</h2>
+    <div id="balance" class="balance">0 / 5 No watermark</div>
+    <div class="note">You will be redirected to finish the reward flow...</div>
+    <div style="margin-top:12px"><button id="goNow" style="padding:8px 12px; border-radius:8px; border:none; background:linear-gradient(45deg,#6b9fff,#ff69b4); color:#fff; cursor:pointer">Go Now</button></div>
+  </div>
+
+  <script>
+    // Show current credits and requested amount if present.
+    const balEl = document.getElementById('balance');
+    function refresh() {
+      const credits = parseInt(localStorage.getItem('ooiy_watermark_credits')||'0',10);
+      const req = parseInt(localStorage.getItem('ooiy_watermark_request')||'0',10);
+      const total = Math.max(credits, 0);
+      const cap = req || 5;
+      balEl.textContent = `${total} / ${cap} No watermark`;
+    }
+    refresh();
+
+    // Grant credits only if a pending token exists; this prevents simple replay.
+    (function attemptGrant(){
+      try {
+        const pending = localStorage.getItem('ooiy_watermark_pending');
+        const req = parseInt(localStorage.getItem('ooiy_watermark_request')||'0',10);
+        if (pending && req > 0) {
+          // grant the requested credits and mark token used
+          const cur = parseInt(localStorage.getItem('ooiy_watermark_credits')||'0',10);
+          localStorage.setItem('ooiy_watermark_credits', String(cur + req));
+          // move token to used list to avoid reuse
+          const used = JSON.parse(localStorage.getItem('ooiy_watermark_used')||'[]');
+          used.push(pending);
+          localStorage.setItem('ooiy_watermark_used', JSON.stringify(used));
+          localStorage.removeItem('ooiy_watermark_pending');
+          localStorage.removeItem('ooiy_watermark_request');
+          // after granting, redirect back to edit
+          setTimeout(()=>{ window.location.href = 'edit.html'; }, 600);
+          return;
+        }
+      } catch(e){ console.error('Grant failed', e); }
+      // no pending request — just go back
+      setTimeout(()=>{ window.location.href = 'edit.html'; }, 600);
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Remove Watermark</title>
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:linear-gradient(135deg,#1a1a1a,#2d2d2d); color:#fff; display:flex; align-items:center; justify-content:center; min-height:100vh; }
+    .card { background:rgba(0,0,0,0.7); padding:20px; border-radius:12px; width:320px; box-shadow:0 8px 30px rgba(0,0,0,0.6); }
+    button { padding:10px 12px; border-radius:8px; border:none; cursor:pointer; }
+    .primary { background:linear-gradient(45deg,#6b9fff,#ff69b4); color:white; }
+    .muted { background:rgba(255,255,255,0.06); color:#fff; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <p style="margin:0; color:#fff; font-size:1.05rem">Watch ads to remove 5 watermarks / Free Quality Download</p>
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:18px">
+      <button id="cancelBtn" class="muted">Cancel</button>
+      <button id="watchBtn" class="primary">Watch Reward Ads</button>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('cancelBtn').addEventListener('click', () => { window.location.href='edit.html'; });
+    document.getElementById('watchBtn').addEventListener('click', () => {
+      try {
+        // set requested credits count so pro.html knows to grant 5 credits after watch
+        const req = 5;
+        const token = 'tok_' + Math.random().toString(36).slice(2) + Date.now();
+        localStorage.setItem('ooiy_watermark_request', String(req));
+        // store a pending token to avoid simple URL replay
+        localStorage.setItem('ooiy_watermark_pending', token);
+        // navigate to pro.html where the rewarded ad should run and then grant
+        window.location.href = 'pro.html';
+      } catch(e) {
+        alert('Failed to start reward flow: ' + e.message);
+      }
+    });
+  </script>
+</body>
+</html>

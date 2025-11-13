@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>AI Object Remover</title>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',Tahoma,Arial,sans-serif}
+  body{background:linear-gradient(135deg,#1a1a1a,#2d2d2d);min-height:100vh;color:#fff;display:flex;flex-direction:column}
+  .top-bar{position:fixed;top:0;left:0;right:0;height:60px;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:space-between;padding:0 1rem;z-index:120}
+  .back-btn{background:none;border:none;color:#fff;font-size:1.4rem;cursor:pointer}
+  .title{font-size:1.05rem;background:linear-gradient(45deg,#6b9fff,#ff69b4);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .preview-area{margin-top:60px;flex:1;display:flex;align-items:center;justify-content:center;padding:1rem}
+  .canvas-wrap{background:rgba(0,0,0,.12);padding:12px;border-radius:12px;position:relative;cursor:crosshair}
+  canvas{max-width:100%;max-height:60vh;border-radius:6px;display:block}
+  .controls{padding:1rem;background:rgba(0,0,0,.95);position:fixed;left:0;right:0;bottom:0;z-index:130}
+  .row{display:flex;gap:.5rem;align-items:center}
+  .btn{flex:1;padding:.9rem;border-radius:12px;border:none;background:rgba(255,255,255,.06);color:#fff;cursor:pointer}
+  .btn.primary{background:linear-gradient(45deg,#6b9fff,#ff69b4)}
+  input[type=file]{display:none}
+  label.upload-label{background:rgba(255,255,255,.05);padding:.8rem 1.2rem;border-radius:10px;cursor:pointer;display:inline-block;color:#fff}
+  .note{font-size:.85rem;color:rgba(255,255,255,.8);margin:6px 0}
+  #brushSize{width:100px;}
+</style>
+</head>
+<body>
+  <div class="top-bar">
+    <button class="back-btn" onclick="history.back()">←</button>
+    <div class="title">AI Object Remover</div>
+    <div style="width:24px"></div>
+  </div>
+
+  <div class="preview-area">
+    <div class="canvas-wrap">
+      <canvas id="canvas"></canvas>
+      <canvas id="maskCanvas" style="position:absolute;left:12px;top:12px;pointer-events:none"></canvas>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="note">Upload a photo, paint unwanted areas, and click “Remove Objects”.</div>
+    <div class="row" style="margin-bottom:.6rem">
+      <label class="upload-label" for="fileInput">📁 Choose Image</label>
+      <input type="file" id="fileInput" accept="image/*">
+      <button class="btn" id="clearBtn">Clear Marks</button>
+    </div>
+    <div class="row" style="margin-bottom:.6rem">
+      <label>Brush:</label>
+      <input type="range" id="brushSize" min="5" max="50" value="20">
+      <span id="brushLabel">20px</span>
+      <button class="btn primary" id="removeBtn">Remove Objects</button>
+    </div>
+    <div class="row">
+      <button class="btn" id="downloadBtn">Download Result</button>
+    </div>
+  </div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const maskCanvas = document.getElementById('maskCanvas');
+const ctx = canvas.getContext('2d');
+const maskCtx = maskCanvas.getContext('2d');
+const fileInput = document.getElementById('fileInput');
+const removeBtn = document.getElementById('removeBtn');
+const clearBtn = document.getElementById('clearBtn');
+const downloadBtn = document.getElementById('downloadBtn');
+const brushRange = document.getElementById('brushSize');
+const brushLabel = document.getElementById('brushLabel');
+
+let drawing = false;
+let brushSize = 20;
+let img = new Image();
+let originalImage = null;
+
+fileInput.addEventListener('change', e=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  img.src = URL.createObjectURL(file);
+});
+
+img.onload = ()=>{
+  const maxW = window.innerWidth * 0.8;
+  const scale = Math.min(maxW / img.width, 0.8);
+  canvas.width = img.width * scale;
+  canvas.height = img.height * scale;
+  maskCanvas.width = canvas.width;
+  maskCanvas.height = canvas.height;
+  ctx.drawImage(img,0,0,canvas.width,canvas.height);
+  maskCtx.clearRect(0,0,maskCanvas.width,maskCanvas.height);
+  originalImage = tf.browser.fromPixels(canvas);
+};
+
+// Brush drawing (mask)
+canvas.addEventListener('mousedown', e=>{
+  if(!originalImage) return;
+  drawing = true;
+  drawMask(e);
+});
+canvas.addEventListener('mousemove', e=>{
+  if(drawing) drawMask(e);
+});
+canvas.addEventListener('mouseup', ()=>drawing=false);
+canvas.addEventListener('mouseleave', ()=>drawing=false);
+
+function drawMask(e){
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  maskCtx.fillStyle = 'rgba(255,0,0,0.4)';
+  maskCtx.beginPath();
+  maskCtx.arc(x,y,brushSize,0,Math.PI*2);
+  maskCtx.fill();
+}
+
+brushRange.addEventListener('input', e=>{
+  brushSize = parseInt(e.target.value);
+  brushLabel.textContent = brushSize + 'px';
+});
+
+clearBtn.onclick = ()=>{
+  maskCtx.clearRect(0,0,maskCanvas.width,maskCanvas.height);
+};
+
+// Main AI inpainting (simplified)
+removeBtn.onclick = async ()=>{
+  if(!originalImage){ alert('Please upload an image first'); return; }
+
+  removeBtn.textContent = "Processing...";
+  removeBtn.disabled = true;
+  await tf.nextFrame();
+
+  const imageTensor = tf.browser.fromPixels(canvas).toFloat().div(255);
+  const maskTensor = tf.browser.fromPixels(maskCanvas).mean(2).greater(0.1).toFloat().expandDims(-1);
+
+  // Blur mask edge for smooth blend
+  const kernel = tf.tensor2d([[1,2,1],[2,4,2],[1,2,1]]).div(16);
+  const blurredMask = tf.conv2d(maskTensor.expandDims(0), kernel.expandDims(2).expandDims(3), 1, 'same').squeeze();
+
+  // Approximate inpainting: blend with surrounding pixels using dilated average
+  let filled = imageTensor;
+  for(let i=0;i<5;i++){
+    const avg = tf.avgPool(filled.expandDims(0), [3,3], [1,1], 'same').squeeze();
+    filled = blurredMask.mul(avg).add(filled.mul(tf.scalar(1).sub(blurredMask)));
+  }
+
+  await tf.browser.toPixels(filled, canvas);
+
+  removeBtn.textContent = "Remove Objects";
+  removeBtn.disabled = false;
+};
+
+// Download
+downloadBtn.onclick = ()=>{
+  const link = document.createElement('a');
+  link.download = 'object_removed.jpg';
+  link.href = canvas.toDataURL('image/jpeg',0.95);
+  link.click();
+};
+</script>
+</body>
+</html>
