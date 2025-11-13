@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Photo Editor</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * {
             margin: 0;
@@ -167,11 +168,11 @@
 </head>
 <body>
     <div class="top-bar">
-        <button class="back-btn" onclick="window.location.href='index.html'">←</button>
+        <button class="back-btn" onclick="window.location.href='index.html'"><i class="fa-solid fa-arrow-left"></i></button>
         <h1>Photo Editor</h1>
         <div class="undo-redo">
-            <button onclick="undo()" id="undoBtn" disabled>↩</button>
-            <button onclick="redo()" id="redoBtn" disabled>↪</button>
+            <button onclick="undo()" id="undoBtn" disabled><i class="fa-solid fa-undo"></i></button>
+            <button onclick="redo()" id="redoBtn" disabled><i class="fa-solid fa-redo"></i></button>
         </div>
     </div>
 
@@ -198,60 +199,64 @@
     <div class="bottom-tools">
         <div class="tools-scroll">
             <div class="tool-card" onclick="window.location.href='filter.html'">
-                <i>🎨</i>
+                <i class="fa-solid fa-palette"></i>
                 <span>Filters</span>
             </div>
             <div class="tool-card" onclick="window.location.href='effect.html'">
-                <i>✨</i>
+                <i class="fa-solid fa-magic"></i>
                 <span>Effects</span>
             </div>
             <div class="tool-card" onclick="window.location.href='addin.html'">
-                <i>🖼️</i>
+                <i class="fa-solid fa-image"></i>
                 <span>Add Image</span>
             </div>
             <div class="tool-card" onclick="window.location.href='ai.html'">
-                <i>🤖</i>
+                <i class="fa-solid fa-robot"></i>
                 <span>AI</span>
             </div>
             <div class="tool-card" onclick="window.location.href='bg.html'">
-                <i>🖼️</i>
+                <i class="fa-solid fa-cut"></i>
                 <span>BG Remover</span>
             </div>
             <div class="tool-card" onclick="window.location.href='save.html'">
-                <i>💾</i>
+                <i class="fa-solid fa-floppy-disk"></i>
                 <span>Save</span>
             </div>
             <div class="tool-card" onclick="window.location.href='brightness.html'">
-                <i>☀️</i>
+                <i class="fa-solid fa-sun"></i>
                 <span>Brightness</span>
             </div>
             <div class="tool-card" onclick="window.location.href='contrast.html'">
-                <i>◐</i>
+                <i class="fa-solid fa-adjust"></i>
                 <span>Contrast</span>
             </div>
             <div class="tool-card" onclick="window.location.href='saturation.html'">
-                <i>🌈</i>
+                <i class="fa-solid fa-droplet"></i>
                 <span>Saturation</span>
             </div>
             <div class="tool-card" onclick="window.location.href='rotate.html'">
-                <i>🔄</i>
+                <i class="fa-solid fa-rotate-right"></i>
                 <span>Rotate</span>
             </div>
             <div class="tool-card" onclick="window.location.href='crop.html'">
-                <i>✂️</i>
+                <i class="fa-solid fa-crop"></i>
                 <span>Crop</span>
             </div>
             <div class="tool-card" onclick="window.location.href='exposure.html'">
-                <i>💡</i>
+                <i class="fa-solid fa-lightbulb"></i>
                 <span>Exposure</span>
             </div>
             <div class="tool-card" onclick="window.location.href='text.html'">
-                <i>📝</i>
+                <i class="fa-solid fa-font"></i>
                 <span>Text</span>
             </div>
             <div class="tool-card" onclick="openVideoEditor()">
-                <i>🎬</i>
+                <i class="fa-solid fa-video"></i>
                 <span>Video</span>
+            </div>
+            <div class="tool-card" onclick="window.location.href='resize.html'">
+                <i class="fa-solid fa-expand"></i>
+                <span>Resize</span>
             </div>
         </div>
     </div>
