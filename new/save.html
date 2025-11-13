@@ -61,8 +61,14 @@
   async function saveDataUrl(dataUrl, mime, filename) {
     try {
       if (window.AndroidInterface && typeof window.AndroidInterface.saveBase64File === 'function') {
-        // Android expects the data URL (base64) and mime and filename
-        window.AndroidInterface.saveBase64File(dataUrl, mime, filename);
+        // Android native method expects raw base64 (no data: prefix). Strip if present.
+        let payload = dataUrl;
+        try {
+          if (typeof dataUrl === 'string' && dataUrl.indexOf(',') !== -1 && dataUrl.startsWith('data:')) {
+            payload = dataUrl.substring(dataUrl.indexOf(',') + 1);
+          }
+        } catch (e) { /* fallback to full string */ }
+        window.AndroidInterface.saveBase64File(payload, mime, filename);
       } else {
         const a = document.createElement('a'); a.href = dataUrl; a.download = filename; a.click();
       }
