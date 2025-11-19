@@ -6,6 +6,7 @@
 <title>Image → PDF Converter</title>
 
 <style>
+/* ... (Your existing CSS here) ... */
 body{background:#111;margin:0;padding:15px;font-family:'Segoe UI',Tahoma;color:white}
 .card{background:#000;padding:15px;border-radius:12px;box-shadow:0 0 20px #000}
 .uploadBox{border:2px dashed #555;padding:25px;text-align:center;border-radius:12px;margin-bottom:15px;color:#aaa;cursor:pointer}
@@ -48,24 +49,23 @@ justify-content:center;align-items:center;z-index:9999}
 
 <label>Image Fit Mode</label>
 <select id="fitMode">
-  <option value="fit">Fit (no crop)</option>
-  <option value="fill">Fill (crop)</option>
-  <option value="stretch">Stretch</option>
+  <option value="fit">Fit (no crop)</option>
+  <option value="fill">Fill (crop)</option>
+  <option value="stretch">Stretch</option>
 </select>
 
 <button onclick="createPDF()">Create PDF</button>
 
 <div class="previewContainer">
-  <div style="text-align:center;color:#888">Preview</div>
-  <img id="singlePreview">
+  <div style="text-align:center;color:#888">Preview</div>
+  <img id="singlePreview">
 </div>
 
 </div>
 
-<!-- Fullscreen -->
 <div id="fullscreen" onclick="closeFS()">
-  <div id="closeFS">Close</div>
-  <img id="fsImg">
+  <div id="closeFS">Close</div>
+  <img id="fsImg">
 </div>
 
 <script>
@@ -75,12 +75,12 @@ let images = [];
 function pickFiles(){ document.getElementById("fileInput").click(); }
 
 document.getElementById("fileInput").onchange = e=>{
-  for(const file of e.target.files){
-    const url = URL.createObjectURL(file);
-    images.push({src:url, rotate:0});
-  }
-  renderThumbs();
-  updatePreview();
+  for(const file of e.target.files){
+    const url = URL.createObjectURL(file);
+    images.push({src:url, rotate:0});
+  }
+  renderThumbs();
+  updatePreview();
 };
 
 /* DRAG REORDER */
@@ -89,117 +89,131 @@ let dragIndex = null;
 function dragStart(i){ dragIndex = i; }
 function dragOver(e){ e.preventDefault(); }
 function dropOn(i){
-  let temp = images[dragIndex];
-  images.splice(dragIndex,1);
-  images.splice(i,0,temp);
-  renderThumbs();
-  updatePreview();
+  let temp = images[dragIndex];
+  images.splice(dragIndex,1);
+  images.splice(i,0,temp);
+  renderThumbs();
+  updatePreview();
 }
 
 /* RENDER THUMBNAILS */
 function renderThumbs(){
-  let box = document.getElementById("imgList");
-  box.innerHTML = "";
+  let box = document.getElementById("imgList");
+  box.innerHTML = "";
 
-  images.forEach((img, i)=>{
-    box.innerHTML += `
-      <div class="thumb" 
-        draggable="true" 
-        ondragstart="dragStart(${i})" 
-        ondragover="dragOver(event)" 
-        ondrop="dropOn(${i})">
+  images.forEach((img, i)=>{
+    box.innerHTML += `
+      <div class="thumb" 
+        draggable="true" 
+        ondragstart="dragStart(${i})" 
+        ondragover="dragOver(event)" 
+        ondrop="dropOn(${i})">
 
-        <img src="${img.src}" onclick="openFS('${img.src}')">
+        <img src="${img.src}" onclick="openFS('${img.src}')">
 
-        <div class="remove" onclick="removeImg(${i})">×</div>
-        <div class="rotateBtn" onclick="rotateImg(${i})">⟳</div>
-      </div>`;
-  });
+        <div class="remove" onclick="removeImg(${i})">×</div>
+        <div class="rotateBtn" onclick="rotateImg(${i})">⟳</div>
+      </div>`;
+  });
 }
 
 /* REMOVE */
 function removeImg(i){
-  images.splice(i,1);
-  renderThumbs();
-  updatePreview();
+  images.splice(i,1);
+  renderThumbs();
+  updatePreview();
 }
 
 /* ROTATE PER IMAGE */
 function rotateImg(i){
-  images[i].rotate = (images[i].rotate + 90) % 360;
-  updatePreview();
+  images[i].rotate = (images[i].rotate + 90) % 360;
+  updatePreview();
 }
 
 /* PREVIEW */
 function updatePreview(){
-  if(images.length===0){
-    document.getElementById("singlePreview").src = "";
-    return;
-  }
-  document.getElementById("singlePreview").src = images[0].src;
+  if(images.length===0){
+    document.getElementById("singlePreview").src = "";
+    return;
+  }
+  document.getElementById("singlePreview").src = images[0].src;
 }
 
 /* FULLSCREEN */
 function openFS(src){
-  document.getElementById("fsImg").src = src;
-  document.getElementById("fullscreen").style.display = "flex";
+  document.getElementById("fsImg").src = src;
+  document.getElementById("fullscreen").style.display = "flex";
 }
 function closeFS(){
-  document.getElementById("fullscreen").style.display = "none";
+  document.getElementById("fullscreen").style.display = "none";
 }
 
 /* LOAD IMAGE */
 function loadImage(url){
-  return new Promise(res=>{
-    let img=new Image();
-    img.onload=()=>res(img);
-    img.src=url;
-  });
+  return new Promise(res=>{
+    let img=new Image();
+    img.onload=()=>res(img);
+    img.src=url;
+  });
 }
 
 /* CREATE PDF */
 async function createPDF(){
-  if(images.length===0){ alert("Upload images first!"); return; }
+  if(images.length===0){ alert("Upload images first!"); return; }
 
-  const fit = document.getElementById("fitMode").value;
-  let first = await loadImage(images[0].src);
+  const fit = document.getElementById("fitMode").value;
+  let first = await loadImage(images[0].src);
 
-  let pageW = first.width;
-  let pageH = first.height;
+  let pageW = first.width;
+  let pageH = first.height;
 
-  const { jsPDF } = window.jspdf;
-  const pdf = new jsPDF({unit:"px", format:[pageW, pageH]});
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({unit:"px", format:[pageW, pageH]});
 
-  for(let i=0;i<images.length;i++){
-    if(i>0) pdf.addPage([pageW, pageH]);
+  for(let i=0;i<images.length;i++){
+    if(i>0) pdf.addPage([pageW, pageH]);
 
-    let img = await loadImage(images[i].src);
-    let angle = images[i].rotate;
+    let img = await loadImage(images[i].src);
+    let angle = images[i].rotate;
 
-    let w = img.width, h = img.height;
-    let x = 0, y = 0;
+    let w = img.width, h = img.height;
+    let x = 0, y = 0;
 
-    /* FIT LOGIC */
-    if(fit==="fit"){
-      let scale = Math.min(pageW/w, pageH/h);
-      w *= scale; h *= scale;
-      x = (pageW - w) / 2;
-      y = (pageH - h) / 2;
-    }
-    if(fit==="fill"){
-      let scale = Math.max(pageW/w, pageH/h);
-      w *= scale; h *= scale;
-      x = (pageW - w) / 2;
-      y = (pageH - h) / 2;
-    }
-    if(fit==="stretch"){
-      w = pageW; h = pageH;
-    }
+    /* FIT LOGIC */
+    if(fit==="fit"){
+      let scale = Math.min(pageW/w, pageH/h);
+      w *= scale; h *= scale;
+      x = (pageW - w) / 2;
+      y = (pageH - h) / 2;
+    }
+    if(fit==="fill"){
+      let scale = Math.max(pageW/w, pageH/h);
+      w *= scale; h *= scale;
+      x = (pageW - w) / 2;
+      y = (pageH - h) / 2;
+    }
+    if(fit==="stretch"){
+      w = pageW; h = pageH;
+    }
 
-    pdf.addImage(img, "JPEG", x, y, w, h, undefined, "FAST", angle);
-  }
+    pdf.addImage(img, "JPEG", x, y, w, h, undefined, "FAST", angle);
+  }
 
-  pdf.save("images.pdf");
+  // --------------------------------------------------------
+  // UPDATED: Get PDF as Base64 string and pass to Android
+  // --------------------------------------------------------
+  const pdfBase64 = pdf.output('datauristring').split(',')[1];
+  const filename = "images_" + Date.now() + ".pdf";
+  
+  // Call the Java method exposed by AndroidInterface
+  if (typeof AndroidInterface !== 'undefined' && AndroidInterface.saveBase64File) {
+    AndroidInterface.saveBase64File(pdfBase64, 'application/pdf', filename);
+    alert("PDF created and sent to Android for download.");
+  } else {
+    // Fallback for standard browser
+    pdf.save(filename);
+  }
+  // --------------------------------------------------------
 }
 </script>
 
