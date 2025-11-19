@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF Tools — Ooiy</title>
+
+  <style>
+    :root{
+      --bg1:#0f1720;
+      --bg2:#1f2937;
+      --accent1:#6b9fff;
+      --accent2:#ff69b4;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{
+      font-family:Inter,system-ui,-apple-system,'Segoe UI',Roboto,Arial;
+      background:linear-gradient(135deg,var(--bg1),var(--bg2));
+      color:#fff;
+      padding:28px;
+    }
+
+    .header{
+      text-align:center;
+      margin-bottom:30px;
+    }
+    .header h1{
+      background:linear-gradient(90deg,var(--accent1),var(--accent2));
+      -webkit-background-clip:text;
+      -webkit-text-fill-color:transparent;
+      font-size:2rem;
+      font-weight:800;
+    }
+
+    .tools{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+      gap:22px;
+      max-width:900px;
+      margin:0 auto;
+    }
+
+    .card{
+      background:rgba(255,255,255,0.04);
+      padding:22px;
+      border-radius:16px;
+      box-shadow:0 8px 28px rgba(2,6,23,0.5);
+      border:1px solid rgba(255,255,255,0.06);
+      transition:transform .18s,box-shadow .18s;
+    }
+    .card:hover{
+      transform:translateY(-6px);
+      box-shadow:0 20px 50px rgba(2,6,23,0.65);
+    }
+
+    .title{
+      font-size:1.2rem;
+      font-weight:600;
+      display:flex;
+      align-items:center;
+      gap:14px;
+      margin-bottom:16px;
+    }
+    .icon{
+      width:50px;
+      height:50px;
+      border-radius:12px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:linear-gradient(45deg,var(--accent1),var(--accent2));
+      font-size:22px;
+      font-weight:700;
+      color:#071022;
+    }
+
+    .btn{
+      width:100%;
+      padding:12px;
+      border:none;
+      border-radius:10px;
+      background:linear-gradient(90deg,var(--accent1),var(--accent2));
+      font-weight:700;
+      color:#071022;
+      font-size:1rem;
+      cursor:pointer;
+      margin-top:12px;
+    }
+
+    a{text-decoration:none}
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>PDF Tools</h1>
+  </div>
+
+  <div class="tools">
+
+    <!-- Image to PDF -->
+    <div class="card">
+      <div class="title">
+        <div class="icon">🖼️</div>
+        Image to PDF
+      </div>
+      <p>Convert your images (JPG/PNG) into a high-quality PDF file.</p>
+      <a href="pdf.html"><button class="btn">Open Tool</button></a>
+    </div>
+
+    <!-- Compress PDF -->
+    <div class="card">
+      <div class="title">
+        <div class="icon">📄</div>
+        Compress PDF
+      </div>
+      <p>Reduce your PDF size without losing too much quality.</p>
+      <a href="pdfcomp.html"><button class="btn">Open Tool</button></a>
+    </div>
+
+  </div>
+
+</body>
+</html>

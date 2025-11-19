@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Resize Image</title>
+  <style>
+    body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;background:linear-gradient(135deg,#1a1a1a,#2d2d2d);color:#fff;min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:20px}
+    .card{background:rgba(11,11,11,0.9);padding:18px;border-radius:12px;width:980px;max-width:98vw;box-shadow:0 10px 40px rgba(0,0,0,0.6)}
+    h1{margin:0 0 12px 0;font-size:1.1rem}
+    .cols{display:flex;gap:16px}
+    .left{flex:1;min-width:280px}
+    .right{width:420px}
+    label{display:block;font-size:0.9rem;margin:8px 0;color:#ddd}
+    .row{display:flex;gap:8px;align-items:center}
+    input[type="number"]{width:120px;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff}
+    select{padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff}
+    .small{width:80px}
+    .btn{padding:10px 12px;border-radius:10px;border:none;cursor:pointer}
+    .primary{background:linear-gradient(45deg,#6b9fff,#ff69b4);color:#fff}
+    .muted{background:rgba(255,255,255,0.03);color:#fff}
+    .preview{background:#0b0b0b;padding:12px;border-radius:8px;text-align:center}
+    canvas{max-width:100%;border-radius:6px;background:transparent}
+    .fit-options{display:flex;gap:8px;margin-top:8px}
+    .fit-options button{flex:1}
+    .unit-help{font-size:0.8rem;color:#888}
+    .row-between{display:flex;justify-content:space-between;align-items:center}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="row-between">
+      <h1>Resize Image</h1>
+      <div style="font-size:0.9rem;color:#ccc">Units: px / in / cm / mm (use DPI for physical units)</div>
+    </div>
+
+    <div class="cols">
+      <div class="left">
+        <label>Width</label>
+        <div class="row">
+          <input id="widthVal" type="number" min="1" value="800" />
+          <select id="widthUnit">
+            <option value="px">px</option>
+            <option value="in">in</option>
+            <option value="cm">cm</option>
+            <option value="mm">mm</option>
+          </select>
+        </div>
+
+        <label>Height</label>
+        <div class="row">
+          <input id="heightVal" type="number" min="1" value="600" />
+          <select id="heightUnit">
+            <option value="px">px</option>
+            <option value="in">in</option>
+            <option value="cm">cm</option>
+            <option value="mm">mm</option>
+          </select>
+        </div>
+
+        <label><input id="lockAspect" type="checkbox" checked /> Lock Aspect Ratio</label>
+        <label>DPI (for in/cm/mm conversions) <input id="dpi" type="number" value="96" min="1" class="small" /></label>
+
+        <label>Background</label>
+        <div class="row">
+          <label style="display:flex;align-items:center;gap:8px"><input type="radio" name="bg" value="transparent" checked /> Transparent</label>
+          <label style="display:flex;align-items:center;gap:8px"><input type="radio" name="bg" value="color" /> Color</label>
+          <input id="bgColor" type="color" value="#ffffff" style="margin-left:8px" />
+        </div>
+
+        <label>Fit Mode</label>
+        <div class="fit-options">
+          <button id="fitStretch" class="btn muted">Stretch</button>
+          <button id="fitContain" class="btn muted">Contain</button>
+          <button id="fitCover" class="btn muted">Cover</button>
+        </div>
+
+        <div style="margin-top:14px;display:flex;gap:8px">
+          <button id="applyBtn" class="btn primary">Apply & Return</button>
+          <button id="downloadBtn" class="btn muted">Download Now</button>
+          <button id="cancelBtn" class="btn" style="background:rgba(255,255,255,0.05)">Cancel</button>
+        </div>
+
+        <div style="margin-top:12px; font-size:0.9rem; color:#bbb">Notes: "Contain" fits whole image within bounds; "Cover" fills and crops; "Stretch" ignores aspect ratio.</div>
+      </div>
+
+      <div class="right">
+        <div class="preview">
+          <div style="margin-bottom:8px; color:#ccc">Preview</div>
+          <canvas id="previewCanvas" width="400" height="300"></canvas>
+        </div>
+        <div style="margin-top:10px; color:#888; font-size:0.85rem">Preview shows result at screen size; final output uses exact pixels you entered.</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // helpers for unit conversion
+  function unitToPx(value, unit, dpi){
+    const v = Number(value) || 0;
+    dpi = Number(dpi) || 96;
+    switch(unit){
+      case 'px': return Math.round(v);
+      case 'in': return Math.round(v * dpi);
+      case 'cm': return Math.round(v * (dpi/2.54));
+      case 'mm': return Math.round(v * (dpi/25.4));
+      default: return Math.round(v);
+    }
+  }
+
+  function pxToUnit(px, unit, dpi){
+    dpi = Number(dpi) || 96;
+    switch(unit){
+      case 'px': return px;
+      case 'in': return (px / dpi);
+      case 'cm': return (px / (dpi/2.54));
+      case 'mm': return (px / (dpi/25.4));
+      default: return px;
+    }
+  }
+
+  // state
+  const widthVal = document.getElementById('widthVal');
+  const heightVal = document.getElementById('heightVal');
+  const widthUnit = document.getElementById('widthUnit');
+  const heightUnit = document.getElementById('heightUnit');
+  const lockAspect = document.getElementById('lockAspect');
+  const dpiEl = document.getElementById('dpi');
+  const bgColor = document.getElementById('bgColor');
+  const previewCanvas = document.getElementById('previewCanvas');
+  const pctx = previewCanvas.getContext('2d');
+  const fitButtons = { stretch: document.getElementById('fitStretch'), contain: document.getElementById('fitContain'), cover: document.getElementById('fitCover') };
+  let fitMode = 'contain';
+
+  let originalData = localStorage.getItem('editImage');
+  if(!originalData){ alert('No image found. Open editor first.'); window.location.href='edit.html'; }
+
+  const img = new Image();
+  img.src = originalData;
+  img.onload = ()=>{
+    // initialize values from image size
+    // fill width/height inputs in px by default
+    const dpi = Number(dpiEl.value)||96;
+    widthUnit.value = 'px'; heightUnit.value='px';
+    widthVal.value = img.naturalWidth; heightVal.value = img.naturalHeight;
+    renderPreview();
+  };
+
+  // fit buttons
+  function setFit(mode){ fitMode = mode; for(const k in fitButtons){ fitButtons[k].classList.remove('primary'); fitButtons[k].classList.add('muted'); } fitButtons[mode].classList.remove('muted'); fitButtons[mode].classList.add('primary'); renderPreview(); }
+  fitButtons.stretch.addEventListener('click', ()=>setFit('stretch'));
+  fitButtons.contain.addEventListener('click', ()=>setFit('contain'));
+  fitButtons.cover.addEventListener('click', ()=>setFit('cover'));
+  setFit('contain');
+
+  // keep aspect ratio when units/values change
+  function getCurrentTargetPixels(){
+    const dpi = Number(dpiEl.value) || 96;
+    const w = unitToPx(widthVal.value, widthUnit.value, dpi);
+    const h = unitToPx(heightVal.value, heightUnit.value, dpi);
+    return { w, h };
+  }
+
+  function renderPreview(){
+    if(!img.complete) return;
+    const { w: targetW, h: targetH } = getCurrentTargetPixels();
+    // draw preview scaled to canvas
+    const cw = previewCanvas.width; const ch = previewCanvas.height;
+    pctx.clearRect(0,0,cw,ch);
+    // compute draw parameters based on fitMode
+    if(fitMode === 'stretch'){
+      // draw stretched to fit target aspect inside preview
+      pctx.drawImage(img, 0, 0, cw, ch);
+    } else {
+      const arImg = img.naturalWidth / img.naturalHeight;
+      const arTarget = targetW / targetH || 1;
+      let drawW, drawH;
+      if(fitMode === 'contain'){
+        const scale = Math.min(cw/targetW, ch/targetH);
+        drawW = Math.round(targetW * scale);
+        drawH = Math.round(targetH * scale);
+        const x = Math.round((cw - drawW)/2); const y = Math.round((ch - drawH)/2);
+        // draw scaled version of the actual resized image - approximate by drawing source scaled into target area
+        // create temp canvas
+        const tmp = document.createElement('canvas'); tmp.width = targetW; tmp.height = targetH; const tctx = tmp.getContext('2d');
+        // fill background if non-transparent
+        const bg = document.querySelector('input[name="bg"]:checked').value;
+        if(bg === 'color'){
+          tctx.fillStyle = bgColor.value; tctx.fillRect(0,0,tmp.width,tmp.height);
+        }
+        // compute source draw for contain inside tmp
+        const sScale = Math.min(tmp.width / img.naturalWidth, tmp.height / img.naturalHeight);
+        const sw = Math.round(img.naturalWidth * sScale); const sh = Math.round(img.naturalHeight * sScale);
+        const sx = Math.round((tmp.width - sw)/2); const sy = Math.round((tmp.height - sh)/2);
+        tctx.drawImage(img, 0,0, img.naturalWidth, img.naturalHeight, sx, sy, sw, sh);
+        pctx.drawImage(tmp, 0,0, tmp.width, tmp.height, x, y, drawW, drawH);
+      } else if(fitMode === 'cover'){
+        // scale to fill target and crop
+        const scale = Math.max(targetW ? (cw/targetW) : 1, targetH ? (ch/targetH) : 1);
+        // create tmp sized target and draw cover
+        const tmp = document.createElement('canvas'); tmp.width = targetW; tmp.height = targetH; const tctx = tmp.getContext('2d');
+        const bg = document.querySelector('input[name="bg"]:checked').value;
+        if(bg === 'color') { tctx.fillStyle = bgColor.value; tctx.fillRect(0,0,tmp.width,tmp.height); }
+        // compute scale on source to cover tmp
+        const sScale = Math.max(tmp.width / img.naturalWidth, tmp.height / img.naturalHeight);
+        const sw = Math.round(img.naturalWidth * sScale); const sh = Math.round(img.naturalHeight * sScale);
+        const sx = Math.round((tmp.width - sw)/2 * -1); const sy = Math.round((tmp.height - sh)/2 * -1);
+        // draw scaled image so it covers
+        tctx.drawImage(img, 0,0, img.naturalWidth, img.naturalHeight, sx, sy, sw, sh);
+        // draw tmp to preview scaled
+        const fitScale = Math.min(cw/tmp.width, ch/tmp.height);
+        drawW = Math.round(tmp.width * fitScale); drawH = Math.round(tmp.height * fitScale);
+        const x = Math.round((cw - drawW)/2); const y = Math.round((ch - drawH)/2);
+        pctx.drawImage(tmp, 0,0, tmp.width, tmp.height, x, y, drawW, drawH);
+      }
+    }
+  }
+
+  // handle lock aspect ratio: when width changes, update height and vice versa
+  function updateLinkedDimension(changed){
+    if(!lockAspect.checked) return;
+    const dpi = Number(dpiEl.value) || 96;
+    const imgW = img.naturalWidth; const imgH = img.naturalHeight; const ar = imgW / imgH;
+    if(changed === 'w'){
+      // convert width to px then compute height in same unit
+      const wPx = unitToPx(widthVal.value, widthUnit.value, dpi);
+      const newHpx = Math.round(wPx / ar);
+      // convert newHpx to selected heightUnit
+      const val = pxToUnit(newHpx, heightUnit.value, dpi);
+      heightVal.value = Math.round((heightUnit.value==='px')? val : (Math.round(val*100)/100));
+    } else {
+      const hPx = unitToPx(heightVal.value, heightUnit.value, dpi);
+      const newWpx = Math.round(hPx * ar);
+      const val = pxToUnit(newWpx, widthUnit.value, dpi);
+      widthVal.value = Math.round((widthUnit.value==='px')? val : (Math.round(val*100)/100));
+    }
+    renderPreview();
+  }
+
+  widthVal.addEventListener('input', ()=>updateLinkedDimension('w'));
+  heightVal.addEventListener('input', ()=>updateLinkedDimension('h'));
+  widthUnit.addEventListener('change', ()=>updateLinkedDimension('w'));
+  heightUnit.addEventListener('change', ()=>updateLinkedDimension('h'));
+  dpiEl.addEventListener('input', ()=>renderPreview());
+  document.querySelectorAll('input[name="bg"]').forEach(n=>n.addEventListener('change', ()=>renderPreview()));
+  bgColor.addEventListener('input', ()=>renderPreview());
+
+  // Apply / Download / Cancel
+  function performResize(targetW, targetH, bgOpt){
+    const canvas = document.createElement('canvas'); canvas.width = targetW; canvas.height = targetH; const ctx = canvas.getContext('2d');
+    if(bgOpt.type === 'color'){
+      ctx.fillStyle = bgOpt.color; ctx.fillRect(0,0,canvas.width,canvas.height);
+    } else {
+      // transparent: clear
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+    }
+    if(fitMode === 'stretch'){
+      ctx.drawImage(img, 0,0, img.naturalWidth, img.naturalHeight, 0,0, canvas.width, canvas.height);
+    } else if(fitMode === 'contain'){
+      const s = Math.min(canvas.width / img.naturalWidth, canvas.height / img.naturalHeight);
+      const sw = Math.round(img.naturalWidth * s); const sh = Math.round(img.naturalHeight * s);
+      const sx = Math.round((canvas.width - sw)/2); const sy = Math.round((canvas.height - sh)/2);
+      ctx.drawImage(img, 0,0, img.naturalWidth, img.naturalHeight, sx, sy, sw, sh);
+    } else if(fitMode === 'cover'){
+      const s = Math.max(canvas.width / img.naturalWidth, canvas.height / img.naturalHeight);
+      const sw = Math.round(img.naturalWidth * s); const sh = Math.round(img.naturalHeight * s);
+      const sx = Math.round((canvas.width - sw)/2); const sy = Math.round((canvas.height - sh)/2);
+      ctx.drawImage(img, 0,0, img.naturalWidth, img.naturalHeight, sx, sy, sw, sh);
+    }
+    return canvas;
+  }
+
+  document.getElementById('applyBtn').addEventListener('click', ()=>{
+    const dpi = Number(dpiEl.value) || 96;
+    const targetW = unitToPx(widthVal.value, widthUnit.value, dpi);
+    const targetH = unitToPx(heightVal.value, heightUnit.value, dpi);
+    const bgSel = document.querySelector('input[name="bg"]:checked').value;
+    const bgOpt = (bgSel === 'color') ? { type:'color', color: bgColor.value } : { type:'transparent' };
+
+    const canvas = performResize(targetW, targetH, bgOpt);
+    // choose png when transparent, else jpeg to save space
+    let dataUrl;
+    if(bgOpt.type === 'transparent') dataUrl = canvas.toDataURL('image/png');
+    else dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+    // write to editor storage and go back
+    try{ localStorage.setItem('editImage', dataUrl); } catch(e){ alert('Failed to save resized image: ' + e.message); return; }
+    window.location.href = 'edit.html';
+  });
+
+  document.getElementById('downloadBtn').addEventListener('click', ()=>{
+    const dpi = Number(dpiEl.value) || 96;
+    const targetW = unitToPx(widthVal.value, widthUnit.value, dpi);
+    const targetH = unitToPx(heightVal.value, heightUnit.value, dpi);
+    const bgSel = document.querySelector('input[name="bg"]:checked').value;
+    const bgOpt = (bgSel === 'color') ? { type:'color', color: bgColor.value } : { type:'transparent' };
+    const canvas = performResize(targetW, targetH, bgOpt);
+    const mime = (bgOpt.type === 'transparent') ? 'image/png' : 'image/jpeg';
+    const dataUrl = (mime==='image/png')? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg',0.92);
+    const filename = `resized-${targetW}x${targetH}${mime==='image/png'?'.png':'.jpg'}`;
+    // download via anchor or AndroidInterface (raw base64)
+    try{
+      if(window.AndroidInterface && typeof window.AndroidInterface.saveBase64File === 'function'){
+        let payload = dataUrl;
+        if(typeof payload === 'string' && payload.indexOf(',')!==-1 && payload.startsWith('data:')) payload = payload.substring(payload.indexOf(',')+1);
+        window.AndroidInterface.saveBase64File(payload, mime, filename);
+      } else {
+        const a = document.createElement('a'); a.href = dataUrl; a.download = filename; a.click();
+      }
+    } catch(e){ const a = document.createElement('a'); a.href = dataUrl; a.download = filename; a.click(); }
+  });
+
+  document.getElementById('cancelBtn').addEventListener('click', ()=>{ window.location.href = 'edit.html'; });
+
+  // update preview on input
+  ['input','change'].forEach(ev=>{ [widthVal,heightVal,widthUnit,heightUnit,dpiEl,bgColor].forEach(el=>el.addEventListener(ev, renderPreview)); document.querySelectorAll('input[name="bg"]').forEach(n=>n.addEventListener(ev, renderPreview)); });
+
+  // initial render
+  setTimeout(()=>renderPreview(), 120);
+</script>
+</body>
+</html>

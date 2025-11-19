@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photo Filters</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #1a1a1a, #2d2d2d);
+            min-height: 100vh;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .top-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 1rem;
+            z-index: 100;
+        }
+
+        .back-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        .top-bar h1 {
+            font-size: 1.2rem;
+            background: linear-gradient(45deg, #6b9fff, #ff69b4);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .image-preview {
+            margin-top: 60px;
+            height: 40vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 1rem;
+        }
+
+        #preview-image {
+            max-width: 100%;
+            max-height: 100%;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .filters-grid {
+            padding: 1rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 1rem;
+            overflow-y: auto;
+            height: calc(60vh - 60px);
+            align-items: start;
+        }
+
+        .filter-item {
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.04);
+            padding: 8px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+        }
+
+        .filter-item:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+        }
+
+        .filter-item.selected {
+            border-color: rgba(107,159,255,0.7);
+            box-shadow: 0 10px 30px rgba(107,159,255,0.12);
+            transform: translateY(-8px) scale(1.01);
+        }
+
+        .thumb {
+            width: 100%;
+            height: 110px;
+            border-radius: 8px;
+            overflow: hidden;
+            background: linear-gradient(180deg, rgba(0,0,0,0.05), rgba(0,0,0,0.08));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .filter-name {
+            margin-top: 10px;
+            text-align: center;
+            font-size: 0.95rem;
+            color: rgba(255,255,255,0.92);
+            padding: 6px 4px;
+        }
+
+        .apply-btn {
+            position: fixed;
+            bottom: 1rem;
+            right: 1rem;
+            background: linear-gradient(45deg, #6b9fff, #ff69b4);
+            color: white;
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 30px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <button class="back-btn" onclick="history.back()">←</button>
+        <h1>Photo Filters</h1>
+        <div style="width: 24px"></div>
+    </div>
+
+    <div class="image-preview">
+        <img id="preview-image" alt="Preview">
+    </div>
+
+    <div class="filters-grid">
+        <!-- Filter thumbnails will be dynamically added here -->
+    </div>
+
+    <button class="apply-btn" onclick="applySelectedFilter()">Apply Filter</button>
+
+    <script>
+        const filters = [
+            { name: "Original", class: "" },
+            { name: "Grayscale", class: "grayscale" },
+            { name: "Sepia", class: "sepia" },
+            { name: "Vintage", class: "vintage" },
+            { name: "Cinema", class: "cinema" },
+            { name: "Retro", class: "retro" },
+            { name: "Summer", class: "summer" },
+            { name: "Winter", class: "winter" },
+            { name: "Night", class: "night" },
+            { name: "Dramatic", class: "dramatic" },
+            { name: "Chrome", class: "chrome" },
+            { name: "Fade", class: "fade" },
+            { name: "Mono", class: "mono" },
+            { name: "Noir", class: "noir" },
+            { name: "Process", class: "process" },
+            { name: "Tonal", class: "tonal" },
+            { name: "Transfer", class: "transfer" },
+            { name: "Warm", class: "warm" },
+            { name: "Cool", class: "cool" },
+            { name: "Sharp", class: "sharp" }
+        ];
+
+        let selectedFilter = "";
+        let originalImage = null;
+
+        window.onload = function() {
+            const imageData = localStorage.getItem('editImage');
+            if (imageData) {
+                originalImage = imageData;
+                document.getElementById('preview-image').src = imageData;
+                createFilterThumbnails();
+            }
+        };
+
+        function createFilterThumbnails() {
+            const grid = document.querySelector('.filters-grid');
+            filters.forEach(filter => {
+                    const filterItem = document.createElement('div');
+                    filterItem.className = 'filter-item';
+                    filterItem.innerHTML = `
+                        <div class="thumb"><img src="${originalImage}" alt="${filter.name}" style="filter: ${getFilterStyle(filter.class)}"></div>
+                        <div class="filter-name">${filter.name}</div>
+                    `;
+                    filterItem.onclick = () => {
+                        // clear previous selection
+                        document.querySelectorAll('.filter-item').forEach(x=>x.classList.remove('selected'));
+                        filterItem.classList.add('selected');
+                        previewFilter(filter.class);
+                    };
+                    grid.appendChild(filterItem);
+            });
+        }
+
+        function getFilterStyle(filterClass) {
+            // Define filter styles
+            const filterStyles = {
+                grayscale: 'grayscale(100%)',
+                sepia: 'sepia(100%)',
+                vintage: 'sepia(50%) hue-rotate(-30deg) saturate(140%)',
+                cinema: 'contrast(110%) saturate(130%)',
+                retro: 'sepia(50%) hue-rotate(10deg) saturate(120%)',
+                summer: 'brightness(110%) saturate(130%)',
+                winter: 'brightness(90%) saturate(85%)',
+                night: 'brightness(80%) contrast(120%)',
+                dramatic: 'contrast(150%) saturate(90%)',
+                chrome: 'contrast(120%) saturate(70%)',
+                fade: 'opacity(80%) saturate(80%)',
+                mono: 'grayscale(100%) contrast(120%)',
+                noir: 'grayscale(100%) contrast(150%)',
+                process: 'contrast(110%) saturate(90%)',
+                tonal: 'contrast(90%) brightness(110%)',
+                transfer: 'sepia(40%) hue-rotate(-20deg)',
+                warm: 'sepia(30%) saturate(120%)',
+                cool: 'hue-rotate(30deg) saturate(90%)',
+                sharp: 'contrast(140%) brightness(105%)'
+            };
+            return filterStyles[filterClass] || '';
+        }
+
+        function previewFilter(filterClass) {
+            selectedFilter = filterClass;
+            const previewImage = document.getElementById('preview-image');
+            previewImage.style.filter = getFilterStyle(filterClass);
+        }
+
+        function applySelectedFilter() {
+            // Allow empty string (Original) as a valid selection
+            const canvas = document.createElement('canvas');
+            const imgEl = document.getElementById('preview-image');
+            canvas.width = imgEl.naturalWidth || imgEl.width;
+            canvas.height = imgEl.naturalHeight || imgEl.height;
+            const ctx = canvas.getContext('2d');
+
+            // Draw the image with the filter (empty filter means original)
+            ctx.filter = getFilterStyle(selectedFilter || '');
+            ctx.drawImage(imgEl, 0, 0, canvas.width, canvas.height);
+
+            // Store the filtered image
+            localStorage.setItem('editImage', canvas.toDataURL('image/jpeg'));
+            history.back();
+        }
+    </script>
+</body>
+</html>

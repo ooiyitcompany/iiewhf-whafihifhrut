@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Collage Maker</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        /* BASE STYLES */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #121212, #242424);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* TOP BAR */
+        .top-bar {
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(8px);
+            padding: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .top-bar h1 {
+            font-size: 1.1rem;
+            background: linear-gradient(45deg, #6b9fff, #ff69b4);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .save-btn {
+            background: linear-gradient(45deg, #6b9fff, #ff69b4);
+            border: none;
+            color: white;
+            padding: 0.4rem 1rem;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .save-btn:hover { opacity: 0.9; }
+
+        /* MAIN CONTENT AREA */
+        .content-container {
+            flex: 1;
+            padding: 1rem 0.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* UPLOAD SECTION */
+        .upload-section {
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        .upload-info {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 0.5rem;
+        }
+
+        .upload-btn {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px dashed rgba(255, 255, 255, 0.2);
+            color: #fff;
+            padding: 0.6rem 1.5rem;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+        }
+        .upload-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: #6b9fff;
+        }
+
+        #file-upload {
+            display: none;
+        }
+
+        /* TEMPLATE SELECTOR */
+        .template-selector {
+            width: 100%;
+            overflow-x: auto;
+            white-space: nowrap;
+            padding: 0.5rem 0;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            scrollbar-width: none;
+        }
+        .template-selector::-webkit-scrollbar {
+            display: none;
+        }
+
+        .template-item {
+            display: inline-block;
+            width: 70px;
+            height: 70px;
+            margin-right: 10px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid transparent;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+
+        .template-item.active {
+            border-color: #ff69b4;
+            box-shadow: 0 0 10px rgba(255, 105, 180, 0.5);
+        }
+
+        /* Placeholder styles for template grids */
+        .grid-layout {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: grid;
+            gap: 1px;
+            background: #242424;
+        }
+
+        .grid-2x2 { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr); }
+        .grid-3x3 { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); }
+        .grid-7 { grid-template-columns: repeat(7, 1fr); grid-template-rows: 1fr; }
+        .grid-auto { grid-template-columns: repeat(6, 1fr); grid-template-rows: repeat(6, 1fr); } 
+        .grid-layout > div { background: rgba(255, 255, 255, 0.1); }
+
+
+        /* COLLAGE PREVIEW */
+        .collage-preview {
+            width: 100%;
+            max-width: 400px;
+            aspect-ratio: 9 / 16;
+            background: #ffffff;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            padding: 5px;
+            overflow: hidden;
+        }
+
+        #collage-canvas {
+            width: 100%;
+            height: 100%;
+            background-color: #f0f0f0;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 5px;
+        }
+        
+        /* CSS for Dynamic Auto-Fill Grid: We rely on JS to calculate rows/columns */
+        #collage-canvas[data-template="auto-grid"] {
+            gap: 2px;
+        }
+        
+        /* Specific CSS for 7 Slot Template */
+        #collage-canvas[data-template="7-strip"] {
+            grid-template-columns: repeat(7, 1fr);
+            grid-template-rows: 1fr;
+            gap: 5px;
+        }
+
+        .photo-slot {
+            background-color: #ccc;
+            border: 1px solid #fff;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .photo-slot:empty:after {
+            content: "Drop/Tap to Add";
+            position: absolute;
+            color: #555;
+            font-size: 0.8em;
+            text-align: center;
+        }
+        
+        .photo-slot:has(img):after {
+            content: none !important;
+        }
+
+        .photo-slot img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            pointer-events: all;
+            cursor: grab;
+            user-select: none;
+        }
+
+        .photo-slot.drag-over {
+            border: 2px solid #ff69b4;
+            opacity: 0.7;
+        }
+
+        /* IMAGE LIST (Thumbnail Bar) */
+        .image-list {
+            padding: 1rem 0;
+            width: 100%;
+            max-width: 400px;
+            overflow-x: auto;
+            white-space: nowrap;
+            margin-top: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            scrollbar-width: none;
+        }
+        .image-list::-webkit-scrollbar { display: none; }
+
+        .image-thumbnail {
+            display: inline-block;
+            width: 60px;
+            height: 60px;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-right: 8px;
+            border: 2px solid transparent;
+            cursor: grab;
+            position: relative;
+        }
+
+        .image-thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .image-thumbnail.dragging {
+            opacity: 0.5;
+            border-color: #6b9fff;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="top-bar">
+        <h1>Collage Maker</h1>
+        <button class="save-btn" id="save-btn">Save</button>
+    </div>
+
+    <div class="content-container">
+
+        <div class="upload-section">
+            <div class="upload-info" id="upload-status">
+                0 / 32 Photos Selected.
+            </div>
+            <label for="file-upload" class="upload-btn">
+                <i class="fa-solid fa-cloud-arrow-up"></i> Upload Photos
+            </label>
+            <input type="file" id="file-upload" accept="image/jpeg, image/png, image/webp, image/jpg" multiple>
+        </div>
+
+        <div class="template-selector" id="template-selector">
+            <div class="template-item active" data-template="2x2">
+                <div class="grid-layout grid-2x2"><div></div><div></div><div></div><div></div></div>
+            </div>
+            <div class="template-item" data-template="3x3">
+                <div class="grid-layout grid-3x3"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+            </div>
+            <div class="template-item" data-template="7-strip">
+                 <div class="grid-layout grid-7"><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+            </div>
+            <div class="template-item" data-template="auto-grid"> 
+                <div class="grid-layout grid-auto"> 
+                    <div style="grid-column: span 2; grid-row: span 2;"></div><div></div><div></div><div></div>
+                    <div style="grid-column: span 2; grid-row: span 2;"></div><div></div><div></div><div></div>
+                    <div style="grid-column: span 2; grid-row: span 2;"></div><div></div><div></div><div></div>
+                    <div style="grid-column: span 2; grid-row: span 2;"></div><div></div><div></div><div></div>
+                </div>
+            </div>
+            <div class="template-item" data-template="custom-1">
+                <div class="grid-layout" style="grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr;"><div></div><div style="grid-row: span 2;"></div><div></div></div>
+            </div>
+        </div>
+
+        <div class="collage-preview">
+            <div id="collage-canvas" data-template="2x2">
+                <div class="photo-slot" data-slot-id="1" draggable="true"></div>
+                <div class="photo-slot" data-slot-id="2" draggable="true"></div>
+                <div class="photo-slot" data-slot-id="3" draggable="true"></div>
+                <div class="photo-slot" data-slot-id="4" draggable="true"></div>
+            </div>
+        </div>
+
+        <div class="image-list" id="image-list">
+            <div style="color: rgba(255, 255, 255, 0.4); font-size: 0.85rem; padding-top: 5px;">
+                Remaining photos for replacement.
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const fileUpload = document.getElementById('file-upload');
+        const imageList = document.getElementById('image-list');
+        const collageCanvas = document.getElementById('collage-canvas');
+        const templateSelector = document.getElementById('template-selector');
+        const uploadStatus = document.getElementById('upload-status');
+        const saveButton = document.getElementById('save-btn');
+        
+        let uploadedFileUrls = [];
+        const MAX_PHOTOS = 32;
+        let currentTemplate = '2x2';
+
+        // --- Core Image Handling & Auto-Fill ---
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+        
+        fileUpload.addEventListener('change', (event) => {
+            const files = Array.from(event.target.files);
+            
+            files.slice(0, MAX_PHOTOS - uploadedFileUrls.length).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const fileUrl = e.target.result;
+                    if (uploadedFileUrls.length < MAX_PHOTOS) {
+                        uploadedFileUrls.push(fileUrl);
+                        // If we are on the auto-grid template, we need to regenerate slots first
+                        if (currentTemplate === 'auto-grid') {
+                            applyTemplate(currentTemplate, true);
+                        } else {
+                            updatePhotoDisplay();
+                        }
+                    }
+                };
+                reader.readAsDataURL(file);
+            });
+            event.target.value = null;
+        });
+
+        function updatePhotoDisplay() {
+            updateUploadStatus();
+            
+            const slots = Array.from(collageCanvas.querySelectorAll('.photo-slot'));
+            
+            // 1. Get the URLs currently placed in the slots
+            let placedUrls = [];
+            slots.forEach(slot => {
+                const img = slot.querySelector('img');
+                if (img) placedUrls.push(img.src);
+            });
+
+            // 2. Determine which URLs are truly 'available' (uploaded but not currently placed)
+            let availableUrls = uploadedFileUrls.filter(url => !placedUrls.includes(url));
+            
+            // 3. Create a prioritized queue: Existing photos first, then available photos, then remaining
+            let photoQueue = [...placedUrls, ...availableUrls]; 
+            
+            shuffleArray(photoQueue);
+
+            // 4. Clear and fill slots from the randomized queue
+            slots.forEach(slot => {
+                slot.innerHTML = '';
+                if (photoQueue.length > 0) {
+                    const url = photoQueue.pop();
+                    addImageToSlot(slot, url);
+                }
+            });
+            
+            // 5. Photos still in the queue are 'remaining' 
+            imageList.innerHTML = photoQueue.length > 0 ? '' : 
+                '<div style="color: rgba(255, 255, 255, 0.4); font-size: 0.85rem; padding-top: 5px;">All uploaded photos are in the collage.</div>';
+
+            photoQueue.forEach(url => {
+                addThumbnail(url);
+            });
+
+            setupDragSwapListeners();
+        }
+
+        function updateUploadStatus() {
+            uploadStatus.textContent = `${uploadedFileUrls.length} / ${MAX_PHOTOS} Photos Selected.`;
+        }
+        
+        function addImageToSlot(slot, url) {
+            slot.innerHTML = '';
+            const img = document.createElement('img');
+            img.src = url;
+            img.draggable = true;
+            slot.appendChild(img);
+        }
+
+        function addThumbnail(url) {
+            const thumb = document.createElement('div');
+            thumb.className = 'image-thumbnail';
+            thumb.draggable = true;
+            
+            const img = document.createElement('img');
+            img.src = url;
+            
+            thumb.appendChild(img);
+            imageList.appendChild(thumb);
+            
+            thumb.addEventListener('dragstart', (event) => {
+                event.dataTransfer.setData('image/url', url);
+                event.dataTransfer.setData('text/plain', 'thumb-replace');
+                event.target.classList.add('dragging');
+            });
+            thumb.addEventListener('dragend', (event) => {
+                event.target.classList.remove('dragging');
+            });
+        }
+
+
+        // --- Template and Slot Management ---
+
+        templateSelector.addEventListener('click', (event) => {
+            const item = event.target.closest('.template-item');
+            if (!item) return;
+
+            document.querySelectorAll('.template-item').forEach(i => i.classList.remove('active'));
+            item.classList.add('active');
+
+            const template = item.dataset.template;
+            applyTemplate(template);
+        });
+
+        // RegenerateSlots is true when photos have just been uploaded and template needs updating
+        function applyTemplate(template, regenerateSlots = false) {
+            currentTemplate = template;
+            let numSlots;
+            let css = '';
+            let html = '';
+            
+            collageCanvas.setAttribute('data-template', template);
+
+            if (template === '2x2') {
+                numSlots = 4;
+                css = 'grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr); gap: 5px;';
+                html = generateSlots(numSlots);
+            } else if (template === '3x3') {
+                numSlots = 9;
+                css = 'grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: 5px;';
+                html = generateSlots(numSlots);
+            } else if (template === '7-strip') {
+                numSlots = 7;
+                css = 'grid-template-columns: repeat(7, 1fr); grid-template-rows: 1fr; gap: 5px;';
+                html = generateSlots(numSlots);
+            } else if (template === 'auto-grid') {
+                // *** DYNAMIC LOGIC HERE ***
+                numSlots = uploadedFileUrls.length;
+                if (numSlots === 0) numSlots = 1; // Show at least one slot if template is selected
+                
+                // Calculate near-square grid dimensions
+                const cols = Math.ceil(Math.sqrt(numSlots));
+                const rows = Math.ceil(numSlots / cols);
+
+                css = `grid-template-columns: repeat(${cols}, 1fr); grid-template-rows: repeat(${rows}, 1fr); gap: 2px;`;
+                html = generateSlots(numSlots);
+            } else if (template === 'custom-1') {
+                numSlots = 3;
+                css = 'grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; gap: 5px;';
+                html = `
+                    <div class="photo-slot" data-slot-id="1" draggable="true"></div>
+                    <div class="photo-slot" data-slot-id="2" draggable="true" style="grid-row: span 2;"></div>
+                    <div class="photo-slot" data-slot-id="3" draggable="true"></div>
+                `;
+            }
+
+            collageCanvas.style.cssText = css;
+            collageCanvas.innerHTML = html;
+            
+            updatePhotoDisplay();
+        }
+
+        function generateSlots(count) {
+            let html = '';
+            for (let i = 1; i <= count; i++) {
+                html += `<div class="photo-slot" data-slot-id="${i}" draggable="true"></div>`;
+            }
+            return html;
+        }
+
+
+        // --- Drag and Drop Logic (Swap and Replace) ---
+
+        let draggedSlot = null;
+
+        function setupDragSwapListeners() {
+            document.querySelectorAll('.photo-slot').forEach(slot => {
+                
+                const newSlot = slot.cloneNode(true);
+                slot.parentNode.replaceChild(newSlot, slot);
+                
+                newSlot.addEventListener('dragstart', onSlotDragStart);
+                newSlot.addEventListener('dragover', onSlotDragOver);
+                newSlot.addEventListener('dragleave', onSlotDragLeave);
+                newSlot.addEventListener('drop', onSlotDrop);
+                newSlot.addEventListener('dragend', onSlotDragEnd);
+            });
+        }
+        
+        function onSlotDragStart(event) {
+            const slot = event.currentTarget;
+            const img = slot.querySelector('img');
+            
+            if (!img) {
+                event.preventDefault();
+                return;
+            }
+            
+            event.dataTransfer.setData('image/url', img.src);
+            event.dataTransfer.setData('text/plain', 'slot-swap');
+            draggedSlot = slot;
+            event.dataTransfer.setDragImage(img, img.offsetWidth / 2, img.offsetHeight / 2);
+        }
+        
+        function onSlotDragOver(event) {
+            event.preventDefault();
+            event.currentTarget.classList.add('drag-over');
+        }
+        
+        function onSlotDragLeave(event) {
+            event.currentTarget.classList.remove('drag-over');
+        }
+
+        function onSlotDrop(event) {
+            event.preventDefault();
+            const targetSlot = event.currentTarget;
+            targetSlot.classList.remove('drag-over');
+
+            const draggedType = event.dataTransfer.getData('text/plain');
+            const draggedUrl = event.dataTransfer.getData('image/url');
+
+            if (draggedType === 'slot-swap' && draggedSlot && draggedSlot !== targetSlot) {
+                // --- SWAP LOGIC ---
+                const draggedImg = draggedSlot.querySelector('img');
+                const targetImg = targetSlot.querySelector('img');
+                
+                const draggedUrlToMove = draggedImg ? draggedImg.src : null;
+                const targetUrlToMove = targetImg ? targetImg.src : null;
+
+                draggedSlot.innerHTML = '';
+                targetSlot.innerHTML = '';
+
+                if (targetUrlToMove) {
+                    addImageToSlot(draggedSlot, targetUrlToMove);
+                }
+                if (draggedUrlToMove) {
+                    addImageToSlot(targetSlot, draggedUrlToMove);
+                }
+
+            } else if (draggedType === 'thumb-replace' && draggedUrl) {
+                // --- REPLACE LOGIC ---
+                const replacedImg = targetSlot.querySelector('img');
+                
+                uploadedFileUrls = uploadedFileUrls.filter(url => url !== draggedUrl);
+                
+                if (replacedImg) {
+                    replacedUrl = replacedImg.src;
+                    uploadedFileUrls.push(replacedUrl);
+                }
+                
+                targetSlot.innerHTML = '';
+                addImageToSlot(targetSlot, draggedUrl);
+                
+                updatePhotoDisplay();
+            }
+            
+            draggedSlot = null;
+        }
+        
+        function onSlotDragEnd(event) {
+            document.querySelectorAll('.photo-slot').forEach(s => s.classList.remove('drag-over'));
+            draggedSlot = null;
+        }
+
+
+        // --- SAVE FUNCTIONALITY ---
+        saveButton.addEventListener('click', () => {
+            if (uploadedFileUrls.length === 0) {
+                alert("Please upload photos first!");
+                return;
+            }
+
+            // High-resolution canvas setup
+            const tempCanvas = document.createElement('canvas');
+            const previewRect = collageCanvas.getBoundingClientRect();
+            
+            const scaleFactor = 3; 
+            tempCanvas.width = previewRect.width * scaleFactor;
+            tempCanvas.height = previewRect.height * scaleFactor;
+            const ctx = tempCanvas.getContext('2d');
+            
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+            
+            const slotElements = collageCanvas.querySelectorAll('.photo-slot');
+            
+            let imagesToLoad = Array.from(slotElements).map(slot => slot.querySelector('img')).filter(img => img);
+            let loadedCount = 0;
+            
+            const drawCollage = () => {
+                slotElements.forEach((slot) => {
+                    const imgElement = slot.querySelector('img');
+                    if (!imgElement) return;
+
+                    // Calculate the position and size of the slot relative to the collageCanvas
+                    const slotRect = slot.getBoundingClientRect();
+                    
+                    // Map display coordinates to high-res canvas coordinates
+                    const x = (slotRect.left - previewRect.left) * scaleFactor;
+                    const y = (slotRect.top - previewRect.top) * scaleFactor;
+                    const w = slotRect.width * scaleFactor;
+                    const h = slotRect.height * scaleFactor;
+                    
+                    // Draw the image
+                    ctx.drawImage(imgElement, x, y, w, h);
+                });
+
+                // Trigger download
+                const link = document.createElement('a');
+                link.download = 'collage_maker_export.png';
+                link.href = tempCanvas.toDataURL('image/png');
+                link.click();
+            };
+
+            // Ensure all images are loaded before drawing
+            if (imagesToLoad.length > 0) {
+                imagesToLoad.forEach(img => {
+                    if (img.complete) {
+                        loadedCount++;
+                    } else {
+                        img.onload = () => {
+                            loadedCount++;
+                            if (loadedCount === imagesToLoad.length) {
+                                drawCollage();
+                            }
+                        };
+                    }
+                });
+                if (loadedCount === imagesToLoad.length) {
+                    drawCollage();
+                }
+            } else {
+                alert("No photos to save.");
+            }
+        });
+
+
+        document.addEventListener('DOMContentLoaded', () => {
+            applyTemplate('2x2');
+        });
+    </script>
+</body>
+</html>

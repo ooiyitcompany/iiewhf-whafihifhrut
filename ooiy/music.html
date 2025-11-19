@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Ooiy Music Editor — Advanced</title>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script src="https://unpkg.com/wavesurfer.js"></script>
+
+<style>
+:root{
+  --bg:#f2f4f8;
+  --card:#ffffff;
+  --muted:#9aa0b4;
+  --accent:#5b4bff;
+  --accent2:#ff69b4;
+}
+*{box-sizing:border-box;font-family:Segoe UI, system-ui, -apple-system, "Helvetica Neue", Arial}
+body{background:var(--bg);padding:20px;color:#111}
+.container{max-width:980px;margin:0 auto;background:var(--card);padding:22px;border-radius:16px;box-shadow:0 8px 30px rgba(15,23,42,0.06)}
+h1{font-size:20px;margin:0 0 10px}
+.card{background:#fbfbff;padding:16px;border-radius:12px;border:1px solid rgba(0,0,0,0.04);margin-top:18px}
+.controls{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+button.btn{display:inline-flex;align-items:center;gap:10px;border:none;padding:10px 14px;border-radius:10px;background:linear-gradient(90deg,var(--accent),var(--accent2));color:#071022;font-weight:700;cursor:pointer}
+button.ghost{background:transparent;border:1px solid rgba(0,0,0,0.06);color:#111}
+input[type=file]{padding:6px}
+#waveform{height:120px;border-radius:10px;background:#fff;margin-top:14px;border:1px solid rgba(0,0,0,0.04)}
+.range-row{display:flex;align-items:center;gap:10px;margin-top:12px}
+.range-row input[type=range]{flex:1}
+.time-small{font-size:13px;color:var(--muted)}
+.song-list div{display:flex;align-items:center;justify-content:space-between;background:#f5f6fb;padding:8px;border-radius:8px;margin-top:8px}
+.song-list .left{display:flex;gap:8px;align-items:center}
+.progress-wrap{margin-top:12px}
+.progress{height:10px;background:#e9e9ef;border-radius:999px;overflow:hidden}
+.progress > i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.center{display:flex;align-items:center;justify-content:center;gap:10px}
+.spinner{border:4px solid #e9e9ef;border-top-color:var(--accent);border-radius:50%;width:28px;height:28px;animation:spin 1s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+.small{font-size:13px;color:#555}
+.audio-preview{margin-top:12px;display:flex;gap:10px;align-items:center}
+.hidden{display:none}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>🎵 Ooiy — Advanced Music Editor</h1>
+  <p class="small">Trim, merge (50+), preview and export WAV. Single toggle play/pause buttons and progress UI while merging.</p>
+
+  <!-- Upload & main controls -->
+  <div class="card">
+    <strong>Upload / Main Player</strong>
+    <div class="controls" style="margin-top:10px">
+      <input type="file" id="audioFile" accept="audio/*">
+      <button id="toggleMain" class="btn"><i class="fa fa-play"></i> Play</button>
+      <button id="stopMain" class="ghost">Stop</button>
+      <div class="small" id="mainDuration">Duration: 0:00</div>
+    </div>
+    <div id="waveform"></div>
+  </div>
+
+  <!-- Trim -->
+  <div class="card">
+    <strong>✂️ Trim</strong>
+    <div class="range-row">
+      <label class="time-small">Start:</label>
+      <input type="range" id="startRange" min="0" max="0" value="0" step="0.01">
+      <span id="startTime" class="time-small">0:00</span>
+    </div>
+    <div class="range-row">
+      <label class="time-small">End:</label>
+      <input type="range" id="endRange" min="0" max="0" value="0" step="0.01">
+      <span id="endTime" class="time-small">0:00</span>
+    </div>
+
+    <div class="audio-preview">
+      <button id="toggleTrim" class="btn"><i class="fa fa-play"></i> Play Trim</button>
+      <button id="exportTrimBtn" class="btn"><i class="fa fa-download"></i> Export Trim</button>
+      <div class="small">Current: <span id="currentTime">0:00</span></div>
+    </div>
+  </div>
+
+  <!-- Merge -->
+  <div class="card">
+    <strong>🔗 Merge (upload many files)</strong>
+    <div style="margin-top:10px" class="controls">
+      <input type="file" id="mergeFiles" accept="audio/*" multiple>
+      <button id="mergeBtn" class="btn"><i class="fa fa-link"></i> Merge All</button>
+      <a id="mergeDownload" class="hidden"><button class="btn"><i class="fa fa-download"></i> Download</button></a>
+      <div id="mergeStatus" class="small"></div>
+    </div>
+
+    <!-- progress + spinner -->
+    <div class="progress-wrap hidden" id="mergeProgressWrap">
+      <div style="display:flex;justify-content:space-between;margin-top:10px">
+        <div class="center"><span class="spinner" id="mergeSpinner"></span><span style="margin-left:10px" id="mergeStage">Preparing...</span></div>
+        <div class="small" id="mergePct">0%</div>
+      </div>
+      <div class="progress" style="margin-top:10px">
+        <i id="mergeProgressBar"></i>
+      </div>
+    </div>
+
+    <div id="mergeList" class="song-list"></div>
+
+    <div id="mergedPreviewBox" class="audio-preview hidden">
+      <strong>Preview Merged:</strong>
+      <button id="toggleMerged" class="btn"><i class="fa fa-play"></i> Play</button>
+      <button id="stopMerged" class="ghost">Stop</button>
+      <audio id="mergedAudio" controls class="hidden"></audio>
+    </div>
+  </div>
+
+  <div style="height:24px"></div>
+</div>
+
+<script>
+/*  Advanced music.html
+    - Single toggle play/pause buttons
+    - Merge 50+ files (sequential decoding)
+    - Spinner + Progress bar while processing
+    - Progress reflects decoding + concatenation + encoding stages
+*/
+
+// Wavesurfer setup
+let wavesurfer = WaveSurfer.create({
+  container: '#waveform',
+  waveColor: '#d1d6ff',
+  progressColor: '#5b4bff',
+  cursorColor: '#222',
+  height: 120,
+  responsive: true
+});
+
+const audioFile = document.getElementById('audioFile');
+const toggleMain = document.getElementById('toggleMain');
+const stopMain = document.getElementById('stopMain');
+const mainDuration = document.getElementById('mainDuration');
+
+const startRange = document.getElementById('startRange');
+const endRange = document.getElementById('endRange');
+const startTime = document.getElementById('startTime');
+const endTime = document.getElementById('endTime');
+const currentTimeEl = document.getElementById('currentTime');
+const toggleTrim = document.getElementById('toggleTrim');
+const exportTrimBtn = document.getElementById('exportTrimBtn');
+
+const mergeFilesInput = document.getElementById('mergeFiles');
+const mergeList = document.getElementById('mergeList');
+const mergeBtn = document.getElementById('mergeBtn');
+const mergeDownload = document.getElementById('mergeDownload');
+const mergeProgressWrap = document.getElementById('mergeProgressWrap');
+const mergeProgressBar = document.getElementById('mergeProgressBar');
+const mergePct = document.getElementById('mergePct');
+const mergeStage = document.getElementById('mergeStage');
+const mergeSpinner = document.getElementById('mergeSpinner');
+const mergeStatus = document.getElementById('mergeStatus');
+
+const mergedPreviewBox = document.getElementById('mergedPreviewBox');
+const toggleMerged = document.getElementById('toggleMerged');
+const stopMerged = document.getElementById('stopMerged');
+const mergedAudio = document.getElementById('mergedAudio');
+
+let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+let mainBuffer = null; // AudioBuffer of the loaded main file
+
+// -------- Helpers --------
+function formatTime(s){
+  if(!isFinite(s)) return '0:00';
+  s = Math.floor(s);
+  const m = Math.floor(s/60);
+  const sec = s % 60;
+  return `${m}:${sec<10? '0'+sec : sec}`;
+}
+
+// Toggle icon helper
+function setToggleIcon(btn, isPlaying){
+  const icon = btn.querySelector('i');
+  if(!icon) return;
+  icon.className = isPlaying ? 'fa fa-pause' : 'fa fa-play';
+  btn.querySelector('span')?.remove(); // keep text stable (optional)
+}
+
+// -------- Main file load --------
+audioFile.addEventListener('change', async (e)=>{
+  const f = e.target.files[0];
+  if(!f) return;
+  wavesurfer.load(URL.createObjectURL(f));
+  try{
+    const arr = await f.arrayBuffer();
+    mainBuffer = await audioCtx.decodeAudioData(arr);
+    mainDuration.textContent = 'Duration: ' + formatTime(mainBuffer.duration);
+    // set ranges limits
+    startRange.max = mainBuffer.duration;
+    endRange.max = mainBuffer.duration;
+    endRange.value = mainBuffer.duration;
+    startRange.value = 0;
+    startTime.textContent = formatTime(0);
+    endTime.textContent = formatTime(mainBuffer.duration);
+  }catch(err){
+    console.error('decode main err', err);
+    alert('Could not load audio (decode error).');
+  }
+});
+
+// Wavesurfer progress updates
+wavesurfer.on('audioprocess', ()=>{
+  currentTimeEl.textContent = formatTime(wavesurfer.getCurrentTime());
+});
+
+// Wavesurfer ready event (ensure ranges)
+wavesurfer.on('ready', ()=>{
+  const d = wavesurfer.getDuration();
+  if(!mainBuffer) {
+    // fallback: set mainBuffer duration value from wavesurfer
+    startRange.max = d;
+    endRange.max = d;
+    endRange.value = d;
+    endTime.textContent = formatTime(d);
+  }
+});
+
+// Single toggle main play/pause
+let mainPlaying = false;
+toggleMain.addEventListener('click', ()=>{
+  if(!wavesurfer.isReady) {
+    // if not loaded, try to play from mainBuffer? do nothing
+    if(!wavesurfer.getDuration || wavesurfer.getDuration() === 0) return alert('Load a file first');
+  }
+  if(!mainPlaying){
+    wavesurfer.play();
+  } else {
+    wavesurfer.pause();
+  }
+  mainPlaying = !mainPlaying;
+  setToggleIcon(toggleMain, mainPlaying);
+});
+
+// stop main (reset)
+stopMain.addEventListener('click', ()=>{
+  wavesurfer.stop();
+  mainPlaying = false;
+  setToggleIcon(toggleMain, false);
+});
+
+// Range UI updates
+startRange.addEventListener('input', ()=> startTime.textContent = formatTime(parseFloat(startRange.value)));
+endRange.addEventListener('input', ()=> endTime.textContent = formatTime(parseFloat(endRange.value)));
+
+// -------- Trim play/pause toggle --------
+let trimPlaying = false;
+let trimAudio = null; // will be an Audio element for trim preview (so we can play precise segment)
+toggleTrim.addEventListener('click', async ()=>{
+  if(!mainBuffer) return alert('Load main audio first');
+  if(!trimPlaying){
+    // create trimmed WAV blob and play using Audio
+    const s = parseFloat(startRange.value);
+    const e = parseFloat(endRange.value);
+    if(e <= s) return alert('End must be greater than start');
+    const trimmedBuffer = sliceAudioBuffer(mainBuffer, s, e);
+    const wav = bufferToWav(trimmedBuffer);
+    const blob = new Blob([wav], {type:'audio/wav'});
+    const url = URL.createObjectURL(blob);
+    if(trimAudio) { trimAudio.pause(); URL.revokeObjectURL(trimAudio.src); }
+    trimAudio = new Audio(url);
+    trimAudio.onended = ()=> {
+      trimPlaying = false;
+      setToggleIcon(toggleTrim, false);
+    };
+    await trimAudio.play();
+    trimPlaying = true;
+    setToggleIcon(toggleTrim, true);
+  } else {
+    trimAudio.pause();
+    trimPlaying = false;
+    setToggleIcon(toggleTrim, false);
+  }
+});
+
+// export trim
+exportTrimBtn.addEventListener('click', ()=>{
+  if(!mainBuffer) return alert('Load main audio first');
+  const s = parseFloat(startRange.value);
+  const e = parseFloat(endRange.value);
+  if(e <= s) return alert('End must be greater than start');
+  const trimmedBuffer = sliceAudioBuffer(mainBuffer, s, e);
+  const wav = bufferToWav(trimmedBuffer);
+  const blob = new Blob([wav], {type:'audio/wav'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'Ooiy_Trim.wav';
+  a.click();
+});
+
+// Helper: slice AudioBuffer
+function sliceAudioBuffer(buffer, startSec, endSec){
+  const sampleRate = buffer.sampleRate;
+  const startSample = Math.floor(startSec * sampleRate);
+  const endSample = Math.floor(endSec * sampleRate);
+  const newLen = endSample - startSample;
+  const numCh = buffer.numberOfChannels;
+  const newBuf = audioCtx.createBuffer(numCh, newLen, sampleRate);
+  for(let ch=0; ch<numCh; ch++){
+    const oldData = buffer.getChannelData(ch);
+    const newData = newBuf.getChannelData(ch);
+    for(let i=0;i<newLen;i++){
+      newData[i] = oldData[i + startSample];
+    }
+  }
+  return newBuf;
+}
+
+// -------- WAV encoding helper (AudioBuffer -> WAV ArrayBuffer) --------
+function bufferToWav(buffer){
+  const numOfChan = buffer.numberOfChannels;
+  const length = buffer.length * numOfChan * 2 + 44;
+  const ab = new ArrayBuffer(length);
+  const view = new DataView(ab);
+  let offset = 0;
+
+  function writeString(str){
+    for(let i=0;i<str.length;i++){
+      view.setUint8(offset++, str.charCodeAt(i));
+    }
+  }
+  function writeUint32(d){
+    view.setUint32(offset, d, true); offset += 4;
+  }
+  function writeUint16(d){
+    view.setUint16(offset, d, true); offset += 2;
+  }
+
+  writeString('RIFF'); writeUint32(length - 8); writeString('WAVE');
+  writeString('fmt '); writeUint32(16); writeUint16(1); writeUint16(numOfChan);
+  writeUint32(buffer.sampleRate); writeUint32(buffer.sampleRate * numOfChan * 2);
+  writeUint16(numOfChan * 2); writeUint16(16);
+  writeString('data'); writeUint32(length - offset - 4);
+
+  // write interleaved PCM16
+  const channels = [];
+  for(let i=0;i<numOfChan;i++) channels.push(buffer.getChannelData(i));
+  let pos = 0;
+  while(pos < buffer.length){
+    for(let ch=0; ch<numOfChan; ch++){
+      let sample = Math.max(-1, Math.min(1, channels[ch][pos]));
+      view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+      offset += 2;
+    }
+    pos++;
+  }
+  return ab;
+}
+
+// -------- Merge functionality (supports 50+ files) --------
+let mergeFiles = []; // File objects
+let decodedBuffers = []; // AudioBuffer list (decoded sequentially)
+
+// When user selects files -> append to mergeFiles
+mergeFilesInput.addEventListener('change', (e)=>{
+  const files = Array.from(e.target.files || []);
+  // append, but keep user order
+  mergeFiles.push(...files);
+  renderMergeList();
+});
+
+// Render file list with per-file toggle button
+function renderMergeList(){
+  mergeList.innerHTML = '';
+  mergeFiles.forEach((f, idx)=>{
+    const div = document.createElement('div');
+    div.innerHTML = `
+      <div class="left">
+        <div style="width:8px;height:8px;border-radius:99px;background:#cfcfff;margin-right:8px"></div>
+        <div style="max-width:68%">${escapeHtml(f.name)}</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="ghost" data-idx="${idx}" onclick="togglePlayFile(event, ${idx})"><i class="fa fa-play"></i></button>
+        <button class="ghost" onclick="removeFile(${idx})"><i class="fa fa-trash"></i></button>
+      </div>
+    `;
+    mergeList.appendChild(div);
+  });
+  mergeStatus.textContent = `${mergeFiles.length} file(s) queued`;
+}
+
+// escape HTML helper
+function escapeHtml(s){ return (s+'').replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+
+// Remove file
+function removeFile(idx){
+  mergeFiles.splice(idx,1);
+  renderMergeList();
+}
+
+// play/pause an individual file (one-button toggle)
+let fileAudioElements = {}; // map idx -> Audio
+async function togglePlayFile(evt, idx){
+  evt.stopPropagation();
+  // pause all others
+  for(const k in fileAudioElements){
+    if(k != idx && fileAudioElements[k] && !fileAudioElements[k].paused){
+      fileAudioElements[k].pause();
+      // also update button icons (re-render)
+      renderMergeList();
+    }
+  }
+  if(!mergeFiles[idx]) return;
+  // create or toggle
+  if(!fileAudioElements[idx]){
+    const url = URL.createObjectURL(mergeFiles[idx]);
+    const a = new Audio(url);
+    fileAudioElements[idx] = a;
+    a.onended = ()=> {
+      // reset icon by re-render
+      renderMergeList();
+    };
+    a.play();
+    renderMergeList(); // icons reflect state by checking paused
+  } else {
+    const a = fileAudioElements[idx];
+    if(a.paused){
+      a.play();
+    } else {
+      a.pause();
+    }
+    renderMergeList();
+  }
+}
+
+// Merge process: sequential decoding to reduce memory pressure
+mergeBtn.addEventListener('click', async ()=>{
+  if(mergeFiles.length < 2) return alert('Please add at least 2 files to merge.');
+  // show progress UI
+  mergeProgressWrap.classList.remove('hidden');
+  mergeStage.textContent = 'Decoding files...';
+  mergePct.textContent = '0%';
+  setProgress(0);
+
+  decodedBuffers = [];
+  try{
+    // decode files one by one and update progress
+    for(let i=0;i<mergeFiles.length;i++){
+      const pct = Math.round((i/mergeFiles.length) * 80); // decoding stage 0-80%
+      mergeStage.textContent = `Decoding ${i+1} / ${mergeFiles.length} — ${mergeFiles[i].name}`;
+      setProgress(pct);
+      // small await for UI update
+      await new Promise(r=>setTimeout(r, 40));
+      const arr = await mergeFiles[i].arrayBuffer();
+      const decoded = await audioCtx.decodeAudioData(arr.slice(0));
+      decodedBuffers.push(decoded);
+    }
+
+    // concatenation stage
+    mergeStage.textContent = 'Concatenating audio...';
+    setProgress(82);
+    await new Promise(r=>setTimeout(r, 40));
+
+    // determine output sampleRate and channel count (use first decoded buffer)
+    const sampleRate = decodedBuffers[0].sampleRate;
+    const numChannels = decodedBuffers[0].numberOfChannels;
+    // compute total length and validate / upmix if necessary
+    let totalLength = decodedBuffers.reduce((acc, b) => acc + b.length, 0);
+
+    // create output buffer
+    const outBuffer = audioCtx.createBuffer(numChannels, totalLength, sampleRate);
+
+    // copy channel data sequentially (update progress)
+    let offset = 0;
+    for(let i=0;i<decodedBuffers.length;i++){
+      const b = decodedBuffers[i];
+      // if channel mismatch, do best-effort: copy first channel(s)
+      for(let ch=0; ch<numChannels; ch++){
+        const src = (ch < b.numberOfChannels) ? b.getChannelData(ch) : b.getChannelData(0); // fallback
+        outBuffer.getChannelData(ch).set(src, offset);
+      }
+      offset += b.length;
+      // update mid-progress between 82..95
+      const midPct = 82 + Math.round(((i+1)/decodedBuffers.length) * 13);
+      setProgress(midPct);
+      await new Promise(r=>setTimeout(r, 8)); // yield to UI
+    }
+
+    // encoding stage
+    mergeStage.textContent = 'Encoding WAV...';
+    setProgress(96);
+    await new Promise(r=>setTimeout(r, 60));
+
+    const wavAB = bufferToWav(outBuffer);
+    setProgress(99);
+
+    // Create blob and download link
+    const blob = new Blob([wavAB], {type:'audio/wav'});
+
+    const url = URL.createObjectURL(blob);
+    mergeDownload.href = url;
+    mergeDownload.download = 'Ooiy_Merged.wav';
+    mergeDownload.classList.remove('hidden');
+
+    // Provide merged preview
+    mergedAudio.src = url;
+    mergedPreviewBox.classList.remove('hidden');
+    mergeStage.textContent = 'Done';
+    setProgress(100);
+
+    // hide spinner after a short delay
+    setTimeout(()=> mergeProgressWrap.classList.add('hidden'), 800);
+
+  }catch(err){
+    console.error('Merge error', err);
+    alert('Error during merge: ' + (err.message || err));
+    mergeProgressWrap.classList.add('hidden');
+  }
+});
+
+// Show spinner and update the progress bar width
+function setProgress(percent){
+  mergePct.textContent = `${percent}%`;
+  mergeProgressBar.style.width = percent + '%';
+}
+
+// play/pause merged with single toggle
+let mergedPlaying = false;
+toggleMerged.addEventListener('click', ()=>{
+  if(!mergedAudio.src) return alert('Merge first to preview');
+  if(!mergedPlaying){
+    mergedAudio.play();
+    mergedPlaying = true;
+    setToggleIcon(toggleMerged, true);
+  } else {
+    mergedAudio.pause();
+    mergedPlaying = false;
+    setToggleIcon(toggleMerged, false);
+  }
+});
+
+stopMerged.addEventListener('click', ()=>{
+  mergedAudio.pause();
+  mergedAudio.currentTime = 0;
+  mergedPlaying = false;
+  setToggleIcon(toggleMerged, false);
+});
+
+// Utility: pause all file previews when navigating away / merging
+window.addEventListener('beforeunload', ()=>{
+  for(const k in fileAudioElements){
+    try{ fileAudioElements[k].pause(); }catch(e){}
+  }
+});
+
+// ensure merge progress bar initial width 0
+mergeProgressBar.style.width = '0%';
+
+// ---- END ----
+</script>
+
+</body>
+</html>

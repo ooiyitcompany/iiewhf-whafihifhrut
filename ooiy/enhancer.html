@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Auto Enhancement</title>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',Tahoma,Arial,sans-serif}
+  body{background:linear-gradient(135deg,#1a1a1a,#2d2d2d);min-height:100vh;color:#fff;display:flex;flex-direction:column}
+  .top-bar{position:fixed;top:0;left:0;right:0;height:60px;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:space-between;padding:0 1rem;z-index:120}
+  .back-btn{background:none;border:none;color:#fff;font-size:1.4rem;cursor:pointer}
+  .title{font-size:1.05rem;background:linear-gradient(45deg,#6b9fff,#ff69b4);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .preview-area{margin-top:60px;flex:1;display:flex;align-items:center;justify-content:center;padding:1rem}
+  .canvas-wrap{background:rgba(0,0,0,.12);padding:12px;border-radius:12px}
+  canvas{max-width:100%;max-height:60vh;border-radius:6px;display:block}
+  .controls{padding:1rem;background:rgba(0,0,0,.95);position:fixed;left:0;right:0;bottom:0;z-index:130}
+  .row{display:flex;gap:.5rem;align-items:center}
+  .btn{flex:1;padding:.9rem;border-radius:12px;border:none;background:rgba(255,255,255,.06);color:#fff;cursor:pointer}
+  .btn.primary{background:linear-gradient(45deg,#6b9fff,#ff69b4)}
+  .note{font-size:.85rem;color:rgba(255,255,255,.8);margin:6px 0}
+  input[type=file]{display:none}
+  label.upload-label{background:rgba(255,255,255,.05);padding:.8rem 1.2rem;border-radius:10px;cursor:pointer;display:inline-block;color:#fff}
+</style>
+</head>
+<body>
+  <div class="top-bar">
+    <button class="back-btn" onclick="history.back()">←</button>
+    <div class="title">AI Auto Enhancement</div>
+    <div style="width:24px"></div>
+  </div>
+
+  <div class="preview-area">
+    <div class="canvas-wrap">
+      <canvas id="canvas"></canvas>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="note">Upload a photo and let TensorFlow enhance it automatically.</div>
+    <div class="row" style="margin-bottom:.6rem">
+      <label class="upload-label" for="fileInput">📁 Choose Image</label>
+      <input type="file" id="fileInput" accept="image/*">
+      <button class="btn primary" id="enhanceBtn">Enhance Image</button>
+    </div>
+    <div class="row">
+      <button class="btn" id="downloadBtn">Download Enhanced</button>
+    </div>
+  </div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const fileInput = document.getElementById('fileInput');
+const enhanceBtn = document.getElementById('enhanceBtn');
+const downloadBtn = document.getElementById('downloadBtn');
+let originalImage = null;
+let enhancedTensor = null;
+
+// Load image to canvas
+fileInput.addEventListener('change', e => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const img = new Image();
+  img.onload = ()=>{
+    const maxW = window.innerWidth * 0.8;
+    const scale = Math.min(maxW / img.width, 0.8);
+    canvas.width = img.width * scale;
+    canvas.height = img.height * scale;
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    originalImage = tf.browser.fromPixels(canvas);
+  };
+  img.src = URL.createObjectURL(file);
+});
+
+// Enhancement logic using TensorFlow
+enhanceBtn.addEventListener('click', async ()=>{
+  if(!originalImage){ alert('Please upload an image first'); return; }
+
+  enhanceBtn.textContent = "Enhancing...";
+  enhanceBtn.disabled = true;
+
+  await tf.nextFrame();
+  let img = originalImage.toFloat().div(255);
+
+  // Apply auto enhancement steps
+  const brightness = 0.08;
+  const contrast = 1.15;
+  const saturation = 1.1;
+  const sharpness = 0.25;
+
+  // Brightness + contrast
+  img = img.mul(contrast).add(brightness).clipByValue(0,1);
+
+  // Convert to HSV for saturation adjust
+  const hsv = rgbToHsv(img);
+  const s = hsv[1].mul(saturation).clipByValue(0,1);
+  img = hsvToRgb([hsv[0], s, hsv[2]]);
+
+  // Slight sharpening
+  const kernel = tf.tensor2d([
+    [0, -sharpness, 0],
+    [-sharpness, 1 + 4 * sharpness, -sharpness],
+    [0, -sharpness, 0]
+  ]);
+  const channels = tf.split(img, 3, 2);
+  const sharpened = channels.map(c => tf.conv2d(c.expandDims(0), kernel.expandDims(2).expandDims(3), 1, 'same').squeeze());
+  img = tf.stack(sharpened, 2).clipByValue(0,1);
+
+  enhancedTensor = img;
+  await tf.browser.toPixels(enhancedTensor, canvas);
+
+  enhanceBtn.textContent = "Enhance Image";
+  enhanceBtn.disabled = false;
+});
+
+// Download enhanced image
+downloadBtn.addEventListener('click', ()=>{
+  const link = document.createElement('a');
+  link.download = 'enhanced.jpg';
+  link.href = canvas.toDataURL('image/jpeg', 0.95);
+  link.click();
+});
+
+// Helper functions
+function rgbToHsv(img){
+  const [r,g,b] = tf.split(img, 3, 2);
+  const max = tf.maximum(tf.maximum(r,g),b);
+  const min = tf.minimum(tf.minimum(r,g),b);
+  const delta = max.sub(min);
+  const h = tf.tidy(()=>{
+    const h1 = tf.where(tf.equal(max, r), g.sub(b).div(delta).mod(6), tf.zerosLike(r));
+    const h2 = tf.where(tf.equal(max, g), b.sub(r).div(delta).add(2), h1);
+    const h3 = tf.where(tf.equal(max, b), r.sub(g).div(delta).add(4), h2);
+    return tf.where(tf.equal(delta, 0), tf.zerosLike(delta), h3.div(6));
+  });
+  const s = tf.where(tf.equal(max,0), tf.zerosLike(max), delta.div(max));
+  return [h,s,max];
+}
+
+function hsvToRgb([h,s,v]){
+  const c = v.mul(s);
+  const x = c.mul(tf.sub(1, tf.abs(tf.mod(h.mul(6), 2).sub(1))));
+  const m = v.sub(c);
+  const zeros = tf.zerosLike(h);
+  const conds = [
+    [tf.less(h,1/6), [c,x,zeros]],
+    [tf.less(h,2/6), [x,c,zeros]],
+    [tf.less(h,3/6), [zeros,c,x]],
+    [tf.less(h,4/6), [zeros,x,c]],
+    [tf.less(h,5/6), [x,zeros,c]],
+    [tf.greaterEqual(h,5/6), [c,zeros,x]]
+  ];
+  let rgb = null;
+  for(const [cond, val] of conds){
+    if(rgb) rgb = tf.where(cond.expandDims(2), tf.stack(val,2), rgb);
+    else rgb = tf.stack(val,2);
+  }
+  return rgb.add(m);
+}
+</script>
+</body>
+</html>

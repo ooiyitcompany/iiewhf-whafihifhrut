@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Rotate Image</title>
+    <style>
+        *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',Tahoma,Arial,sans-serif}
+        body{background:linear-gradient(135deg,#1a1a1a,#2d2d2d);min-height:100vh;color:#fff;display:flex;flex-direction:column}
+        .top-bar{position:fixed;top:0;left:0;right:0;height:60px;background:rgba(0,0,0,.8);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:space-between;padding:0 1rem;z-index:100}
+        .back-btn{background:none;border:none;color:#fff;font-size:1.4rem;cursor:pointer}
+        .top-bar h1{font-size:1.1rem;background:linear-gradient(45deg,#6b9fff,#ff69b4);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+        .image-preview{margin-top:60px;height:52vh;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(0,0,0,.18)}
+        .preview-wrap{transition:transform .2s ease;display:inline-block}
+        #preview-image{max-width:100%;max-height:100%;border-radius:10px;box-shadow:0 4px 15px rgba(0,0,0,.3);display:block}
+        .controls{padding:1.25rem;background:rgba(0,0,0,.85);position:fixed;left:0;right:0;bottom:0}
+        .rotate-row{display:flex;gap:.5rem;justify-content:center;margin-bottom:.8rem}
+        .btn{padding:.75rem 1rem;border-radius:12px;border:none;background:rgba(255,255,255,.06);color:#fff;cursor:pointer}
+        .btn.action{background:linear-gradient(45deg,#6b9fff,#ff69b4)}
+        .slider-container{padding:0 1rem;margin-bottom:.75rem}
+        .range-slider{appearance:none;width:100%;height:16px;background:rgba(255,255,255,.07);border-radius:12px}
+        .range-slider::-webkit-slider-thumb{appearance:none;width:34px;height:34px;background:linear-gradient(45deg,#6b9fff,#ff69b4);border-radius:50%;border:3px solid #fff;cursor:pointer}
+        .angle-label{display:flex;justify-content:space-between;padding:0 1rem;margin-bottom:.5rem}
+        .button-container{display:flex;gap:.65rem}
+        .control-btn{flex:1;padding:1rem;border-radius:28px;border:none;font-size:1rem;cursor:pointer}
+        .reset-btn{background:rgba(255,255,255,.08)}
+        .apply-btn{background:linear-gradient(45deg,#6b9fff,#ff69b4);color:#fff}
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <button class="back-btn" onclick="history.back()">←</button>
+        <h1>Rotate</h1>
+        <div style="width:24px"></div>
+    </div>
+
+    <div class="image-preview">
+        <div class="preview-wrap" id="previewWrap">
+            <img id="preview-image" alt="Preview">
+        </div>
+    </div>
+
+    <div class="controls">
+        <div class="rotate-row">
+            <button class="btn" id="rotLeft">⟲ 90°</button>
+            <button class="btn" id="rotRight">90° ⟳</button>
+            <button class="btn" id="flipH">⇋</button>
+            <button class="btn" id="flipV">⇅</button>
+        </div>
+
+        <div class="slider-container">
+            <div class="angle-label"><span>Angle</span><span id="angleVal">0°</span></div>
+            <input id="angleSlider" class="range-slider" type="range" min="-180" max="180" value="0">
+        </div>
+
+        <div class="button-container">
+            <button class="control-btn reset-btn" id="resetBtn">Reset</button>
+            <button class="control-btn apply-btn" id="applyBtn">Apply</button>
+        </div>
+    </div>
+
+    <script>
+        let originalImage = null;
+        const previewImg = document.getElementById('preview-image');
+        const previewWrap = document.getElementById('previewWrap');
+        const angleSlider = document.getElementById('angleSlider');
+        const angleVal = document.getElementById('angleVal');
+        const rotLeft = document.getElementById('rotLeft');
+        const rotRight = document.getElementById('rotRight');
+        const flipH = document.getElementById('flipH');
+        const flipV = document.getElementById('flipV');
+        const resetBtn = document.getElementById('resetBtn');
+        const applyBtn = document.getElementById('applyBtn');
+
+        // transform state
+        let angle = 0;
+        let scaleX = 1;
+        let scaleY = 1;
+
+        window.onload = function(){
+            const data = localStorage.getItem('editImage');
+            if(data){
+                originalImage = data;
+                previewImg.src = data;
+                updateTransform();
+            }
+        };
+
+        function updateTransform(){
+            previewWrap.style.transform = `rotate(${angle}deg) scale(${scaleX}, ${scaleY})`;
+            angleVal.textContent = `${angle}°`;
+        }
+
+        angleSlider.oninput = function(){
+            angle = parseInt(this.value,10);
+            updateTransform();
+        };
+
+        rotLeft.onclick = function(){ angle = (angle - 90) % 360; angleSlider.value = angle; updateTransform(); };
+        rotRight.onclick = function(){ angle = (angle + 90) % 360; angleSlider.value = angle; updateTransform(); };
+        flipH.onclick = function(){ scaleX *= -1; updateTransform(); };
+        flipV.onclick = function(){ scaleY *= -1; updateTransform(); };
+
+        resetBtn.onclick = function(){ angle = 0; scaleX = 1; scaleY = 1; angleSlider.value = 0; updateTransform(); };
+
+        applyBtn.onclick = function(){
+            // apply rotation/flip permanently using canvas
+            const img = new Image();
+            img.onload = function(){
+                // compute canvas size after rotation
+                const rad = angle * Math.PI / 180;
+                const sin = Math.abs(Math.sin(rad));
+                const cos = Math.abs(Math.cos(rad));
+                const w = img.width;
+                const h = img.height;
+                const newW = Math.ceil(w * cos + h * sin);
+                const newH = Math.ceil(w * sin + h * cos);
+
+                const canvas = document.createElement('canvas');
+                canvas.width = newW;
+                canvas.height = newH;
+                const ctx = canvas.getContext('2d');
+
+                // move to center
+                ctx.translate(newW/2, newH/2);
+                ctx.rotate(rad);
+                ctx.scale(scaleX, scaleY);
+
+                // draw image centered
+                ctx.drawImage(img, -w/2, -h/2);
+
+                const newData = canvas.toDataURL('image/jpeg');
+                localStorage.setItem('editImage', newData);
+                history.back();
+            };
+            img.src = originalImage;
+        };
+    </script>
+</body>
+</html>

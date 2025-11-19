@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Image → PDF Converter</title>
+
+<style>
+body{background:#111;margin:0;padding:15px;font-family:'Segoe UI',Tahoma;color:white}
+.card{background:#000;padding:15px;border-radius:12px;box-shadow:0 0 20px #000}
+.uploadBox{border:2px dashed #555;padding:25px;text-align:center;border-radius:12px;margin-bottom:15px;color:#aaa;cursor:pointer}
+input[type=file]{display:none}
+
+.imgList{white-space:nowrap;overflow-x:auto;margin-bottom:10px;padding-bottom:8px}
+.thumb{display:inline-block;position:relative;margin-right:8px}
+.thumb img{width:100px;height:100px;border-radius:8px;object-fit:cover;border:2px solid #222;cursor:grab}
+.remove{position:absolute;top:4px;right:4px;background:#ff4444;width:22px;height:22px;border-radius:50%;
+display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer}
+.rotateBtn{position:absolute;bottom:4px;right:4px;background:#3b82f6;width:22px;
+height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer}
+
+label{margin-top:10px;display:block}
+select{width:100%;padding:10px;border-radius:10px;background:#000;border:1px solid #333;color:white}
+button{width:100%;padding:14px;margin-top:18px;border:none;border-radius:10px;font-size:17px;
+background:linear-gradient(45deg,#6aa0ff,#ff4bc0);color:white;cursor:pointer}
+
+.previewContainer{background:#000;margin-top:20px;padding:12px;border-radius:10px}
+.previewContainer img{width:100%;border-radius:10px}
+
+#fullscreen{position:fixed;top:0;left:0;width:100vw;height:100vh;background:#000;display:none;
+justify-content:center;align-items:center;z-index:9999}
+#fullscreen img{max-width:100%;max-height:100%}
+#closeFS{position:absolute;top:20px;right:20px;background:red;padding:10px;border-radius:8px}
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+
+<div class="card">
+
+<h2>Image → PDF</h2>
+
+<div class="uploadBox" onclick="pickFiles()">Tap to select images</div>
+<input id="fileInput" type="file" accept="image/*" multiple>
+
+<div id="imgList" class="imgList"></div>
+
+<label>Image Fit Mode</label>
+<select id="fitMode">
+  <option value="fit">Fit (no crop)</option>
+  <option value="fill">Fill (crop)</option>
+  <option value="stretch">Stretch</option>
+</select>
+
+<button onclick="createPDF()">Create PDF</button>
+
+<div class="previewContainer">
+  <div style="text-align:center;color:#888">Preview</div>
+  <img id="singlePreview">
+</div>
+
+</div>
+
+<!-- Fullscreen -->
+<div id="fullscreen" onclick="closeFS()">
+  <div id="closeFS">Close</div>
+  <img id="fsImg">
+</div>
+
+<script>
+let images = [];
+
+/* PICK FILES */
+function pickFiles(){ document.getElementById("fileInput").click(); }
+
+document.getElementById("fileInput").onchange = e=>{
+  for(const file of e.target.files){
+    const url = URL.createObjectURL(file);
+    images.push({src:url, rotate:0});
+  }
+  renderThumbs();
+  updatePreview();
+};
+
+/* DRAG REORDER */
+let dragIndex = null;
+
+function dragStart(i){ dragIndex = i; }
+function dragOver(e){ e.preventDefault(); }
+function dropOn(i){
+  let temp = images[dragIndex];
+  images.splice(dragIndex,1);
+  images.splice(i,0,temp);
+  renderThumbs();
+  updatePreview();
+}
+
+/* RENDER THUMBNAILS */
+function renderThumbs(){
+  let box = document.getElementById("imgList");
+  box.innerHTML = "";
+
+  images.forEach((img, i)=>{
+    box.innerHTML += `
+      <div class="thumb" 
+        draggable="true" 
+        ondragstart="dragStart(${i})" 
+        ondragover="dragOver(event)" 
+        ondrop="dropOn(${i})">
+
+        <img src="${img.src}" onclick="openFS('${img.src}')">
+
+        <div class="remove" onclick="removeImg(${i})">×</div>
+        <div class="rotateBtn" onclick="rotateImg(${i})">⟳</div>
+      </div>`;
+  });
+}
+
+/* REMOVE */
+function removeImg(i){
+  images.splice(i,1);
+  renderThumbs();
+  updatePreview();
+}
+
+/* ROTATE PER IMAGE */
+function rotateImg(i){
+  images[i].rotate = (images[i].rotate + 90) % 360;
+  updatePreview();
+}
+
+/* PREVIEW */
+function updatePreview(){
+  if(images.length===0){
+    document.getElementById("singlePreview").src = "";
+    return;
+  }
+  document.getElementById("singlePreview").src = images[0].src;
+}
+
+/* FULLSCREEN */
+function openFS(src){
+  document.getElementById("fsImg").src = src;
+  document.getElementById("fullscreen").style.display = "flex";
+}
+function closeFS(){
+  document.getElementById("fullscreen").style.display = "none";
+}
+
+/* LOAD IMAGE */
+function loadImage(url){
+  return new Promise(res=>{
+    let img=new Image();
+    img.onload=()=>res(img);
+    img.src=url;
+  });
+}
+
+/* CREATE PDF */
+async function createPDF(){
+  if(images.length===0){ alert("Upload images first!"); return; }
+
+  const fit = document.getElementById("fitMode").value;
+  let first = await loadImage(images[0].src);
+
+  let pageW = first.width;
+  let pageH = first.height;
+
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({unit:"px", format:[pageW, pageH]});
+
+  for(let i=0;i<images.length;i++){
+    if(i>0) pdf.addPage([pageW, pageH]);
+
+    let img = await loadImage(images[i].src);
+    let angle = images[i].rotate;
+
+    let w = img.width, h = img.height;
+    let x = 0, y = 0;
+
+    /* FIT LOGIC */
+    if(fit==="fit"){
+      let scale = Math.min(pageW/w, pageH/h);
+      w *= scale; h *= scale;
+      x = (pageW - w) / 2;
+      y = (pageH - h) / 2;
+    }
+    if(fit==="fill"){
+      let scale = Math.max(pageW/w, pageH/h);
+      w *= scale; h *= scale;
+      x = (pageW - w) / 2;
+      y = (pageH - h) / 2;
+    }
+    if(fit==="stretch"){
+      w = pageW; h = pageH;
+    }
+
+    pdf.addImage(img, "JPEG", x, y, w, h, undefined, "FAST", angle);
+  }
+
+  pdf.save("images.pdf");
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF → PDF Compressor</title>
+
+<style>
+body{background:#111;margin:0;padding:15px;font-family:'Segoe UI',Tahoma;color:white}
+.card{background:#000;padding:15px;border-radius:12px;box-shadow:0 0 20px #000}
+.uploadBox{border:2px dashed #555;padding:25px;text-align:center;border-radius:12px;margin-bottom:15px;color:#aaa;cursor:pointer}
+input[type=file]{display:none}
+label{margin-top:10px;display:block}
+select,input{width:100%;padding:10px;border-radius:10px;background:#000;border:1px solid #333;color:white}
+button{width:100%;padding:14px;margin-top:18px;border:none;border-radius:10px;font-size:17px;
+background:linear-gradient(45deg,#6aa0ff,#ff4bc0);color:white;cursor:pointer}
+
+/* Progress bar */
+#progressBox{width:100%;background:#222;height:12px;border-radius:10px;margin-top:15px;display:none;}
+#progressBar{height:100%;width:0%;background:#6aa0ff;border-radius:10px;transition:0.2s;}
+
+#sizeInfo{text-align:center;margin-top:10px;color:#6aa0ff;font-size:15px;font-weight:bold}
+</style>
+
+<!-- Libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.14.305/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+
+<div class="card">
+
+<h2>PDF → PDF Compressor</h2>
+
+<div class="uploadBox" onclick="pickPDF()">Tap to select PDF</div>
+<input id="pdfInput" type="file" accept="application/pdf">
+
+<label>Choose Target Size</label>
+<input id="targetSize" type="number" placeholder="Enter size (ex: 500)"> 
+
+<select id="targetUnit">
+  <option value="KB">KB</option>
+  <option value="MB">MB</option>
+  <option value="GB">GB</option>
+</select>
+
+<button onclick="compressToTarget()">Compress to Size</button>
+
+<div id="progressBox"><div id="progressBar"></div></div>
+<div id="sizeInfo"></div>
+
+</div>
+
+<script>
+let selectedPDF = null;
+
+function pickPDF(){
+  document.getElementById("pdfInput").click();
+}
+
+document.getElementById("pdfInput").onchange = e=>{
+  selectedPDF = e.target.files[0];
+  document.querySelector(".uploadBox").innerHTML =
+    selectedPDF ? "Selected: " + selectedPDF.name : "Tap to select PDF";
+};
+
+function updateProgress(v){
+  document.getElementById("progressBox").style.display = "block";
+  document.getElementById("progressBar").style.width = v + "%";
+}
+
+/* Convert user target size input to bytes */
+function toBytes(num, unit){
+  if(unit === "KB") return num * 1024;
+  if(unit === "MB") return num * 1024 * 1024;
+  if(unit === "GB") return num * 1024 * 1024 * 1024;
+  return num;
+}
+
+async function compressToTarget(){
+  if(!selectedPDF){
+    alert("Select a PDF first!");
+    return;
+  }
+
+  let target = parseFloat(document.getElementById("targetSize").value);
+  let unit = document.getElementById("targetUnit").value;
+
+  if(!target){
+    alert("Enter a size!");
+    return;
+  }
+
+  let targetBytes = toBytes(target, unit);
+  let originalSize = selectedPDF.size;
+
+  let arrayBuffer = await selectedPDF.arrayBuffer();
+  const loadingTask = pdfjsLib.getDocument({data: arrayBuffer});
+  const pdf = await loadingTask.promise;
+
+  let bestBlob = null;
+  let low = 0.05, high = 1, mid;
+
+  updateProgress(1);
+
+  // binary search for perfect compression
+  for(let step=0; step<7; step++){
+    mid = (low + high) / 2;
+    let blob = await compressQuality(pdf, mid);
+    let size = blob.size;
+
+    if(size > targetBytes){
+      high = mid;
+    } else {
+      low = mid;
+      bestBlob = blob;
+    }
+
+    updateProgress((step+1) * 13);
+  }
+
+  let finalBlob = bestBlob || await compressQuality(pdf, 0.05);
+
+  updateProgress(100);
+
+  // Show size info
+  document.getElementById("sizeInfo").innerHTML =
+    `Original: ${(originalSize/1024/1024).toFixed(2)} MB<br>
+     Final: ${(finalBlob.size/1024/1024).toFixed(2)} MB<br>
+     Target: ${target} ${unit}`;
+
+  // Download
+  let a = document.createElement("a");
+  a.href = URL.createObjectURL(finalBlob);
+  a.download = "compressed.pdf";
+  a.click();
+}
+
+/* Compress using quality */
+async function compressQuality(pdf, quality){
+  const { jsPDF } = window.jspdf;
+  let pdfDoc = null;
+
+  for(let i=1; i<=pdf.numPages; i++){
+    const page = await pdf.getPage(i);
+    const viewport = page.getViewport({ scale: 1.5 });
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+
+    await page.render({ canvasContext: ctx, viewport }).promise;
+
+    let img = canvas.toDataURL("image/jpeg", quality);
+
+    if(i === 1){
+      pdfDoc = new jsPDF({
+        unit:"px",
+        format:[viewport.width, viewport.height]
+      });
+    } else {
+      pdfDoc.addPage([viewport.width, viewport.height]);
+    }
+
+    pdfDoc.addImage(img,"JPEG",0,0,viewport.width,viewport.height);
+  }
+
+  return pdfDoc.output("blob");
+}
+</script>
+
+</body>
+</html>

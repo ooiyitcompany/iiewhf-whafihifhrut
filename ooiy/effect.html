@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Effects — Photo Editor</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',Tahoma,Arial,sans-serif}
+  body{background:linear-gradient(135deg,#0f1226,#141824);min-height:100vh;color:#fff;display:flex;flex-direction:column}
+  .top-bar{position:fixed;top:0;left:0;right:0;height:60px;background:rgba(0,0,0,.7);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:space-between;padding:0 1rem;z-index:120}
+  .back-btn{background:none;border:none;color:#fff;font-size:1.4rem;cursor:pointer}
+  .title{font-size:1.05rem;background:linear-gradient(45deg,#6b9fff,#ff69b4);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .preview-area{margin-top:60px;padding:1rem;display:flex;flex-direction:column;gap:.75rem;align-items:center}
+  #preview-wrap{width:100%;max-width:1200px;background:rgba(255,255,255,0.02);border-radius:12px;padding:12px;display:flex;justify-content:center;align-items:center}
+  #preview-image{max-width:100%;max-height:56vh;border-radius:8px;display:block}
+  /* edit toolbar */
+  .edit-toolbar{width:100%;max-width:1200px;display:flex;gap:.6rem;align-items:center;justify-content:center;padding:8px;margin:0 auto}
+  .et-btn{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.04);color:#fff;padding:8px 10px;border-radius:8px;cursor:pointer}
+  .et-btn.primary{background:linear-gradient(45deg,#6b9fff,#ff69b4);border:none}
+  .zoom-range{width:180px}
+  .effects-grid{padding:1rem;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:1rem;max-width:1200px;margin:0 auto;width:100%}
+  .effect-item{background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);border-radius:10px;padding:8px;cursor:pointer;display:flex;flex-direction:column;transition:transform .18s ease,box-shadow .18s ease}
+  .effect-item:hover{transform:translateY(-6px);box-shadow:0 10px 30px rgba(0,0,0,.5)}
+  .effect-item.selected{border-color:rgba(107,159,255,.7);box-shadow:0 12px 30px rgba(107,159,255,.08);transform:translateY(-8px) scale(1.01)}
+  .thumb{height:110px;border-radius:6px;overflow:hidden;background:#000;position:relative}
+  .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .thumb .overlay{position:absolute;inset:0;pointer-events:none}
+  .effect-name{text-align:center;margin-top:8px;font-size:.95rem;color:rgba(255,255,255,.95)}
+  .apply-btn{position:fixed;right:1rem;bottom:1rem;background:linear-gradient(45deg,#6b9fff,#ff69b4);border:none;color:#fff;padding:12px 20px;border-radius:28px;font-size:1rem;cursor:pointer;box-shadow:0 8px 26px rgba(0,0,0,.4)}
+  /* overlay helpers */
+  .vignette{background:radial-gradient(ellipse at center, rgba(0,0,0,0) 40%, rgba(0,0,0,0.6) 100%)}
+  .grain{background-image:radial-gradient(rgba(255,255,255,0.02) 1px, transparent 1px);background-size:3px 3px;opacity:.25}
+  .duotone-blue{background:linear-gradient(120deg, rgba(2,48,71,0.18), rgba(255,140,64,0.06));mix-blend-mode:overlay}
+  .softglow{backdrop-filter:blur(2px);opacity:.9}
+  .tilt-mask{background:linear-gradient(180deg, rgba(0,0,0,0.6), rgba(0,0,0,0) 40%, rgba(0,0,0,0) 60%, rgba(0,0,0,0.6));transform:rotate(-8deg)}
+  .note{max-width:1200px;margin:0 auto;padding:0 1rem 1rem 1rem;color:rgba(255,255,255,.7);font-size:.9rem}
+</style>
+</head>
+<body>
+  <div class="top-bar">
+    <button class="back-btn" onclick="history.back()">←</button>
+    <div class="title">Modern Effects</div>
+    <div style="width:24px"></div>
+  </div>
+
+  <div class="preview-area">
+    <div id="preview-wrap"><img id="preview-image" alt="Preview"></div>
+
+    <div class="edit-toolbar" style="margin-top:.6rem;">
+      <div style="display:flex;align-items:center;gap:.5rem;">
+        <button class="et-btn" id="btnUp">↑</button>
+        <button class="et-btn" id="btnLeft">←</button>
+        <button class="et-btn" id="btnRight">→</button>
+        <button class="et-btn" id="btnDown">↓</button>
+      </div>
+      <div style="width:12px"></div>
+      <div style="display:flex;align-items:center;gap:.4rem">
+        <button class="et-btn" id="zoomOut">−</button>
+        <input id="intensityRange" class="zoom-range" type="range" min="0.2" max="2.5" step="0.01" value="1">
+        <button class="et-btn" id="zoomIn">+</button>
+      </div>
+      <div style="width:12px"></div>
+      <button class="et-btn primary" id="resetBtn">Reset</button>
+    </div>
+
+    <div class="note">Click an effect to preview. Use the arrows/zoom to move the image inside the frame (effects only). Click Apply to save.</div>
+  </div>
+
+  <div class="effects-grid" id="effectsGrid"></div>
+
+  <button class="apply-btn" id="applyBtn">Apply Effect</button>
+
+<script>
+  // effects: previews via CSS filters and overlays; apply uses canvas and may add vignette/grain overlays
+  const effects = [
+    { id: 'original', name: 'Original', type: 'css', style: '' },
+    { id: 'vignette', name: 'Vignette', type: 'overlay', overlay: 'vignette' },
+    { id: 'filmgrain', name: 'Film Grain', type: 'overlay', overlay: 'grain' },
+    { id: 'tiltshift', name: 'Tilt-Shift', type: 'composite', filter: 'blur(3px) contrast(105%)', overlay: 'tilt-mask' },
+    { id: 'duotone', name: 'Duotone (Blue/Orange)', type: 'composite', filter: 'grayscale(100%) contrast(110%)', overlay: 'duotone-blue' },
+    { id: 'softglow', name: 'Soft Glow', type: 'composite', filter: 'brightness(110%) saturate(110%)', overlay: 'softglow' },
+    { id: 'cinematic', name: 'Cinematic Teal-Orange', type: 'css', style: 'contrast(110%) saturate(120%) sepia(8%) hue-rotate(-10deg) brightness(95%)' },
+    { id: 'hdr', name: 'HDR-ish', type: 'css', style: 'contrast(130%) saturate(125%) brightness(105%)' },
+    { id: 'bwgrain', name: 'Grainy B&W', type: 'composite', filter: 'grayscale(100%) contrast(120%)', overlay: 'grain' },
+    { id: 'lomo', name: 'Lomo', type: 'css', style: 'contrast(120%) saturate(140%) hue-rotate(-5deg)' },
+    { id: 'posterize', name: 'Posterize', type: 'css', style: 'contrast(120%) saturate(110%)' },
+    { id: 'invert', name: 'Invert', type: 'css', style: 'invert(100%)' },
+    { id: 'warm', name: 'Warm Tone', type: 'css', style: 'sepia(15%) saturate(120%) brightness(102%)' },
+    { id: 'cool', name: 'Cool Tone', type: 'css', style: 'hue-rotate(200deg) saturate(90%) brightness(98%)' },
+    { id: 'bleach', name: 'Bleach Bypass', type: 'css', style: 'saturate(60%) contrast(115%)' },
+    { id: 'matte', name: 'Matte', type: 'css', style: 'contrast(90%) brightness(98%)' },
+    { id: 'golden', name: 'Golden Hour', type: 'composite', filter: 'brightness(105%) saturate(115%)', overlay: 'duotone-blue' },
+    { id: 'tealorange', name: 'Teal & Orange', type: 'composite', filter: 'contrast(115%) saturate(120%)', overlay: 'duotone-blue' },
+    { id: 'softcontrast', name: 'Soft Contrast', type: 'css', style: 'contrast(110%) brightness(102%)' },
+    { id: 'crossprocess', name: 'Cross Process', type: 'css', style: 'saturate(130%) hue-rotate(-10deg)' },
+    { id: 'film2', name: 'Film Stock', type: 'composite', filter: 'contrast(115%) saturate(110%)', overlay: 'grain' },
+    { id: 'clarity', name: 'Clarity Boost', type: 'css', style: 'contrast(125%) saturate(105%)' }
+  ];
+
+  // Add many additional "move/zoom inside photo" style effects (line, shadow, scan, neon, edge, emboss...)
+  // Each effect can include a default transform {tx,ty,scale,rotation} applied to the image preview (in pixels for tx/ty)
+  const moreEffects = [
+    { id:'scanline', name:'Scanlines', type:'overlay', overlay:'grain', note:'scan', transform:{tx:0,ty:0,scale:1} },
+    { id:'inner-shadow', name:'Inner Shadow', type:'overlay', overlay:'vignette', transform:{tx:0,ty:0,scale:1} },
+    { id:'edge-glow', name:'Edge Glow', type:'composite', filter:'contrast(120%) brightness(105%)', transform:{tx:0,ty:0,scale:1.02} },
+    { id:'neon', name:'Neon Edge', type:'composite', filter:'contrast(120%) saturate(140%)', transform:{tx:0,ty:0,scale:1} },
+    { id:'emboss', name:'Emboss', type:'composite', filter:'grayscale(100%) contrast(110%)', transform:{tx:0,ty:0,scale:1} },
+    { id:'halftone', name:'Halftone', type:'overlay', overlay:'grain', transform:{tx:0,ty:0,scale:1} },
+    { id:'shadow-drop', name:'Drop Shadow', type:'css', style:'drop-shadow(0 8px 12px rgba(0,0,0,0.6))', transform:{tx:0,ty:8,scale:0.98} },
+    { id:'outline', name:'Outline', type:'css', style:'contrast(120%)', transform:{tx:0,ty:0,scale:1} },
+    { id:'chromatic', name:'Chromatic Aberration', type:'composite', filter:'saturate(110%)', transform:{tx:0,ty:0,scale:1.01} },
+    { id:'poster', name:'Poster Edge', type:'css', style:'contrast(140%) saturate(110%)', transform:{tx:0,ty:0,scale:1} },
+    { id:'softfocus', name:'Soft Focus', type:'css', style:'blur(1px) brightness(105%)', transform:{tx:0,ty:0,scale:1} },
+    { id:'grainy-color', name:'Color Grain', type:'overlay', overlay:'grain', transform:{tx:0,ty:0,scale:1} },
+    { id:'sketch', name:'Sketch', type:'composite', filter:'grayscale(100%) contrast(120%)', transform:{tx:0,ty:0,scale:1} },
+    { id:'watercolor', name:'Watercolor', type:'css', style:'saturate(110%) contrast(95%)', transform:{tx:0,ty:0,scale:1} },
+    { id:'gloss', name:'Gloss', type:'overlay', overlay:'softglow', transform:{tx:0,ty:0,scale:1} },
+    { id:'edge-detect', name:'Edge Detect', type:'composite', filter:'contrast(130%)', transform:{tx:0,ty:0,scale:1} },
+    { id:'neon2', name:'Neon Pop', type:'composite', filter:'saturate(150%) contrast(120%)', transform:{tx:0,ty:0,scale:1} },
+    { id:'soft-tone', name:'Soft Tone', type:'css', style:'brightness(102%) saturate(105%)', transform:{tx:0,ty:0,scale:1} },
+    { id:'vhs', name:'VHS', type:'overlay', overlay:'grain', transform:{tx:0,ty:0,scale:1} }
+  ];
+
+  // Merge the lists for rendering
+  moreEffects.forEach(e=>effects.push(e));
+
+  const grid = document.getElementById('effectsGrid');
+  const preview = document.getElementById('preview-image');
+  const applyBtn = document.getElementById('applyBtn');
+  let selected = 'original';
+  let originalDataUrl = null;
+  // transform state for interactive editing (pan/zoom/rotate)
+  let tx = 0, ty = 0, scale = 1, rotation = 0;
+  let isPanning = false, panStart = null;
+  const wrap = document.getElementById('preview-wrap');
+
+  window.onload = ()=>{
+    originalDataUrl = localStorage.getItem('editImage');
+    if(!originalDataUrl){ preview.alt = 'No image found. Open editor and choose an image first.'; return; }
+    preview.src = originalDataUrl;
+    buildGrid();
+  };
+
+  function buildGrid(){
+    effects.forEach(e=>{
+      const item = document.createElement('div');
+      item.className = 'effect-item';
+      item.dataset.effect = e.id;
+      const thumb = document.createElement('div'); thumb.className = 'thumb';
+      const img = document.createElement('img'); img.src = originalDataUrl;
+
+      // apply preview style
+      if(e.type === 'css' && e.style){ img.style.filter = e.style; }
+      if(e.type === 'composite' && e.filter){ img.style.filter = e.filter; }
+
+      thumb.appendChild(img);
+      // overlay elements for visualizations
+      if(e.overlay){ const ov = document.createElement('div'); ov.className = 'overlay ' + e.overlay; thumb.appendChild(ov); }
+
+      const name = document.createElement('div'); name.className = 'effect-name'; name.textContent = e.name;
+      item.appendChild(thumb); item.appendChild(name);
+
+      item.onclick = ()=>{
+        document.querySelectorAll('.effect-item').forEach(x=>x.classList.remove('selected'));
+        item.classList.add('selected');
+        selected = e.id;
+        previewEffect(e);
+      };
+
+      grid.appendChild(item);
+    });
+    // select original by default
+    const first = grid.querySelector('[data-effect="original"]'); if(first) first.classList.add('selected');
+  }
+
+  // build edit toolbar UI
+  (function buildToolbar(){
+    const toolbar = document.createElement('div'); toolbar.className = 'edit-toolbar';
+    toolbar.innerHTML = `
+      <button class="et-btn" onclick="resetTransform()">Reset</button>
+      <button class="et-btn" onclick="rotateLeft()">⟲</button>
+      <button class="et-btn" onclick="rotateRight()">⟳</button>
+      <div style="width:8px"></div>
+      <label style="font-size:.85rem;color:rgba(255,255,255,.8)">Zoom</label>
+      <input class="zoom-range" id="zoomRange" type="range" min="0.2" max="4" step="0.01" value="1">
+    `;
+    document.querySelector('.preview-area').appendChild(toolbar);
+    document.getElementById('zoomRange').addEventListener('input', (e)=> setZoom(parseFloat(e.target.value)));
+  })();
+
+  function previewEffect(effect){
+    // reset overlays and filter
+    preview.style.filter = '';
+    // remove existing overlay on preview-wrap
+    const wrap = document.getElementById('preview-wrap');
+    Array.from(wrap.querySelectorAll('.overlay')).forEach(n=>n.remove());
+
+    if(effect.type === 'css'){
+      preview.style.filter = effect.style || '';
+    } else if(effect.type === 'overlay'){
+      preview.style.filter = '';
+      const ov = document.createElement('div'); ov.className = 'overlay ' + (effect.overlay||''); ov.style.position='absolute'; ov.style.inset=0; ov.style.pointerEvents='none';
+      wrap.appendChild(ov);
+    } else if(effect.type === 'composite'){
+      preview.style.filter = effect.filter || '';
+      if(effect.overlay){ const ov = document.createElement('div'); ov.className='overlay '+effect.overlay; ov.style.position='absolute'; ov.style.inset=0; ov.style.pointerEvents='none'; wrap.appendChild(ov); }
+    }
+  }
+
+  // --- interactive edit controls: pan, zoom, rotate ---
+  // apply CSS transform on preview image for quick editing
+  function updatePreviewTransform(){
+    preview.style.transform = `translate(${tx}px, ${ty}px) scale(${scale}) rotate(${rotation}deg)`;
+  }
+
+  // pointer-based panning
+  preview.addEventListener('pointerdown', (e)=>{
+    preview.setPointerCapture(e.pointerId);
+    isPanning = true; panStart = {x:e.clientX, y:e.clientY, tx, ty};
+  });
+  window.addEventListener('pointermove', (e)=>{
+    if(!isPanning || !panStart) return;
+    const dx = e.clientX - panStart.x; const dy = e.clientY - panStart.y;
+    tx = panStart.tx + dx; ty = panStart.ty + dy; updatePreviewTransform();
+  });
+  window.addEventListener('pointerup', (e)=>{ if(isPanning){ isPanning=false; panStart=null; } });
+
+  // wheel to zoom
+  wrap.addEventListener('wheel', (e)=>{
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.06 : 0.06; scale = Math.min(4, Math.max(0.2, scale + delta)); updatePreviewTransform();
+  }, {passive:false});
+
+  // toolbar functions
+  function rotateLeft(){ rotation = (rotation - 90) % 360; updatePreviewTransform(); }
+  function rotateRight(){ rotation = (rotation + 90) % 360; updatePreviewTransform(); }
+  function resetTransform(){ tx=0; ty=0; scale=1; rotation=0; updatePreviewTransform(); }
+  function setZoom(v){ scale = v; updatePreviewTransform(); }
+
+
+  // apply effect: draw to canvas, apply overlays programmatically for accuracy
+  applyBtn.onclick = async ()=>{
+    if(!originalDataUrl) return;
+    const img = new Image(); img.src = originalDataUrl;
+    await img.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext('2d');
+
+    const eff = effects.find(x=>x.id === selected) || effects[0];
+
+    // For CSS-filterable effects, use ctx.filter
+  // apply transform (pan/zoom/rotate) to canvas context
+  ctx.save();
+  // center transform
+  ctx.translate(canvas.width/2 + tx*(canvas.width / wrap.clientWidth), canvas.height/2 + ty*(canvas.height / wrap.clientHeight));
+  ctx.rotate(rotation * Math.PI/180);
+  ctx.scale(scale, scale);
+  ctx.translate(-canvas.width/2, -canvas.height/2);
+
+  if(eff.type === 'css' && eff.style){ ctx.filter = eff.style; ctx.drawImage(img,0,0); }
+  else if(eff.type === 'composite' && eff.filter){ ctx.filter = eff.filter; ctx.drawImage(img,0,0); }
+  else { ctx.drawImage(img,0,0); }
+  ctx.restore();
+
+    // overlays: vignette and grain and duotone etc.
+    if(eff.id === 'vignette'){
+      // create radial gradient and multiply
+      const g = ctx.createRadialGradient(canvas.width/2, canvas.height/2, Math.min(canvas.width,canvas.height)*0.25, canvas.width/2, canvas.height/2, Math.max(canvas.width,canvas.height)*0.8);
+      g.addColorStop(0,'rgba(0,0,0,0)');
+      g.addColorStop(1,'rgba(0,0,0,0.6)');
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.fillStyle = g; ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
+    if(eff.id === 'filmgrain' || eff.id === 'bwgrain'){
+      const amount = eff.id==='filmgrain' ? 0.06 : 0.12;
+      const noiseCanvas = document.createElement('canvas'); noiseCanvas.width = canvas.width; noiseCanvas.height = canvas.height; const nctx = noiseCanvas.getContext('2d');
+      const imgd = nctx.createImageData(canvas.width, canvas.height); const d = imgd.data;
+      for(let i=0;i<d.length;i+=4){ const v = (Math.random()*255)|0; d[i]=d[i+1]=d[i+2]=v; d[i+3]= (amount*255)|0; }
+      nctx.putImageData(imgd,0,0);
+      ctx.globalAlpha = amount*0.9; ctx.drawImage(noiseCanvas,0,0); ctx.globalAlpha = 1.0;
+      if(eff.id==='bwgrain'){
+        // force grayscale
+        const id = ctx.getImageData(0,0,canvas.width,canvas.height); const pix = id.data;
+        for(let i=0;i<pix.length;i+=4){ const g = (pix[i]*0.3 + pix[i+1]*0.59 + pix[i+2]*0.11)|0; pix[i]=pix[i+1]=pix[i+2]=g; }
+        ctx.putImageData(id,0,0);
+      }
+    }
+
+    if(eff.id === 'duotone'){
+      // simple duotone: map grayscale to two colors
+      const id = ctx.getImageData(0,0,canvas.width,canvas.height); const pix = id.data;
+      // colors: dark teal -> light orange
+      const c1 = {r:2,g:48,b:71}; const c2 = {r:255,g:140,b:64};
+      for(let i=0;i<pix.length;i+=4){ const g = (pix[i]*0.3 + pix[i+1]*0.59 + pix[i+2]*0.11)/255; pix[i]=Math.round(c1.r*(1-g)+c2.r*g); pix[i+1]=Math.round(c1.g*(1-g)+c2.g*g); pix[i+2]=Math.round(c1.b*(1-g)+c2.b*g); }
+      ctx.putImageData(id,0,0);
+    }
+
+    if(eff.id === 'tiltshift'){
+      // blur center band by compositing blurred copy with mask
+      // create blurred copy
+      const blurCanvas = document.createElement('canvas'); blurCanvas.width=canvas.width; blurCanvas.height=canvas.height; const bctx=blurCanvas.getContext('2d');
+      bctx.filter = 'blur(6px)'; bctx.drawImage(img,0,0);
+      // mask: create gradient alpha
+      const mask = document.createElement('canvas'); mask.width=canvas.width; mask.height=canvas.height; const mctx = mask.getContext('2d');
+      const mg = mctx.createLinearGradient(0,canvas.height*0.2,0,canvas.height*0.8); mg.addColorStop(0,'rgba(0,0,0,1)'); mg.addColorStop(0.45,'rgba(0,0,0,0)'); mg.addColorStop(0.55,'rgba(0,0,0,0)'); mg.addColorStop(1,'rgba(0,0,0,1)');
+      mctx.fillStyle = mg; mctx.fillRect(0,0,mask.width,mask.height);
+      // composite: draw original, then blurred where mask is transparent
+      const base = ctx.getImageData(0,0,canvas.width,canvas.height);
+      ctx.putImageData(base,0,0); ctx.globalCompositeOperation = 'destination-over';
+      // draw blurred but use mask to clip
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.drawImage(blurCanvas,0,0);
+      ctx.globalCompositeOperation = 'destination-in'; ctx.drawImage(mask,0,0);
+      ctx.globalCompositeOperation = 'destination-over'; ctx.drawImage(base,0,0);
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
+    // done: save
+    const out = canvas.toDataURL('image/png');
+    localStorage.setItem('editImage', out);
+    // give tiny feedback then go back
+    applyBtn.textContent = 'Saved ✓';
+    setTimeout(()=> history.back(), 450);
+  };
+
+</script>
+</body>
+</html>
