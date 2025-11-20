@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ultra Modern Music Player</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+
+<style>
+  /* --- BASE RESET & FONTS --- */
+  * { box-sizing: border-box; outline: none; user-select: none; }
+  
+  body {
+    margin: 0;
+    background-color: #050505;
+    /* Deep animated background */
+    background-image: radial-gradient(circle at 50% 50%, #1a0b2e 0%, #000000 100%);
+    font-family: 'Segoe UI', sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden;
+    color: #fff;
+  }
+
+  /* --- THE GLASS FRAME WITH DISCO BORDER --- */
+  .player-card {
+    position: relative;
+    width: 90%;
+    max-width: 500px;
+    height: 600px;
+    
+    /* Base Glass Style */
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    border-radius: 30px;
+    
+    /* Layout */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: 30px;
+    z-index: 10;
+    
+    /* THE DISCO BORDER ANIMATION */
+    border: 15px solid transparent; /* Width of the neon border */
+    animation: discoGlow 8s linear infinite;
+  }
+
+  /* NEW: The Disco Color Cycle Animation */
+  @keyframes discoGlow {
+    0% {
+      border-color: #ff0000;
+      box-shadow: 0 0 20px rgba(255, 0, 0, 0.4), inset 0 0 10px rgba(255, 0, 0, 0.2);
+    }
+    15% {
+      border-color: #ff00ff;
+      box-shadow: 0 0 20px rgba(255, 0, 255, 0.4), inset 0 0 10px rgba(255, 0, 255, 0.2);
+    }
+    30% {
+      border-color: #0000ff;
+      box-shadow: 0 0 20px rgba(0, 0, 255, 0.4), inset 0 0 10px rgba(0, 0, 255, 0.2);
+    }
+    45% {
+      border-color: #00ffff;
+      box-shadow: 0 0 20px rgba(0, 255, 255, 0.4), inset 0 0 10px rgba(0, 255, 255, 0.2);
+    }
+    60% {
+      border-color: #00ff00;
+      box-shadow: 0 0 20px rgba(0, 255, 0, 0.4), inset 0 0 10px rgba(0, 255, 0, 0.2);
+    }
+    75% {
+      border-color: #ffff00;
+      box-shadow: 0 0 20px rgba(255, 255, 0, 0.4), inset 0 0 10px rgba(255, 255, 0, 0.2);
+    }
+    100% {
+      border-color: #ff0000;
+      box-shadow: 0 0 20px rgba(255, 0, 0, 0.4), inset 0 0 10px rgba(255, 0, 0, 0.2);
+    }
+  }
+
+  /* --- CANVAS VISUALIZER (The Disco Wave) --- */
+  canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 28px; /* Slightly less than card to fit inside border */
+    z-index: -1; 
+    opacity: 0.8;
+  }
+
+  /* --- TOP SECTION: LOGO & FILE --- */
+  .header {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+
+  .logo {
+    font-weight: 700;
+    letter-spacing: 2px;
+    font-size: 14px;
+    color: rgba(255,255,255,0.8);
+    text-transform: uppercase;
+    text-shadow: 0 0 5px rgba(255,255,255,0.5);
+  }
+
+  .upload-btn {
+    background: linear-gradient(135deg, #ff00d4, #00ddff);
+    border: none;
+    border-radius: 20px;
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: bold;
+    color: #fff;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(0, 221, 255, 0.4);
+    transition: transform 0.2s;
+  }
+  .upload-btn:active { transform: scale(0.95); }
+  input[type="file"] { display: none; }
+
+  /* --- MIDDLE: ARTWORK PLACEHOLDER --- */
+  .disk-wrapper {
+    width: 180px;
+    height: 180px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #222, #000);
+    border: 2px solid rgba(255,255,255,0.1);
+    box-shadow: 0 0 30px rgba(0,0,0,0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    margin-top: 20px;
+  }
+  
+  .disk-wrapper i {
+    font-size: 60px;
+    color: rgba(255,255,255,0.1);
+    animation: floatIcon 3s ease-in-out infinite;
+  }
+
+  @keyframes floatIcon {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+  }
+
+  /* --- CONTROLS SECTION --- */
+  .controls-area {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  /* Song Info */
+  .song-info {
+    text-align: center;
+  }
+  .song-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-shadow: 0 0 10px rgba(255,255,255,0.3);
+  }
+  .artist-name {
+    font-size: 12px;
+    color: rgba(255,255,255,0.5);
+    margin-top: 5px;
+  }
+
+  /* Progress Bar */
+  .progress-container {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  .time-display {
+    font-size: 11px;
+    font-family: monospace;
+    color: rgba(255,255,255,0.7);
+    width: 35px;
+  }
+
+  /* Custom Range Slider */
+  input[type="range"] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 4px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 2px;
+    cursor: pointer;
+    position: relative;
+  }
+  
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    height: 12px;
+    width: 12px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 10px #fff, 0 0 20px #ff00d4;
+    margin-top: -4px; /* Center thumb */
+    transition: transform 0.1s;
+  }
+  
+  input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.5);
+  }
+
+  /* Main Buttons */
+  .buttons {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 30px;
+    margin-top: 10px;
+  }
+
+  .btn {
+    color: #fff;
+    font-size: 20px;
+    cursor: pointer;
+    transition: color 0.2s, transform 0.1s;
+  }
+  
+  .btn:hover { color: #00ddff; }
+  .btn:active { transform: scale(0.9); }
+
+  .play-btn-large {
+    font-size: 50px;
+    background: linear-gradient(to bottom right, #ff00d4, #7000ff);
+    -webkit-background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 0 8px rgba(112, 0, 255, 0.6));
+  }
+  .play-btn-large:hover {
+    transform: scale(1.1);
+    filter: drop-shadow(0 0 15px rgba(112, 0, 255, 0.9));
+  }
+
+</style>
+</head>
+
+<body>
+
+<div class="player-card">
+  <canvas id="visualizer"></canvas>
+
+  <div class="header">
+    <div class="logo"><i class="fa-solid fa-wave-square"></i> OO1Y</div>
+    <label class="upload-btn" for="musicFile">
+      <i class="fa-solid fa-cloud-arrow-up"></i> LOAD TRACK
+    </label>
+    <input type="file" id="musicFile" accept="audio/*">
+  </div>
+
+  <div class="disk-wrapper">
+    <i class="fa-solid fa-music"></i>
+  </div>
+
+  <div class="controls-area">
+    
+    <div class="song-info">
+      <h3 class="song-title" id="titleDisplay">No Audio Loaded</h3>
+      <p class="artist-name">Select a file to begin disco</p>
+    </div>
+
+    <div class="progress-container">
+      <span class="time-display" id="currTime">0:00</span>
+      <input type="range" id="progressBar" value="0" min="0" max="100" step="0.1">
+      <span class="time-display" id="durTime">0:00</span>
+    </div>
+
+    <div class="buttons">
+      <i class="fa-solid fa-backward-step btn"></i>
+      <i id="playBtn" class="fa-solid fa-circle-play btn play-btn-large"></i>
+      <i class="fa-solid fa-forward-step btn"></i>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const fileInput  = document.getElementById("musicFile");
+  const playBtn    = document.getElementById("playBtn");
+  const audio      = new Audio();
+  const progressBar= document.getElementById("progressBar");
+  const currTimeEl = document.getElementById("currTime");
+  const durTimeEl  = document.getElementById("durTime");
+  const titleDisplay = document.getElementById("titleDisplay");
+  const canvas     = document.getElementById("visualizer");
+  const ctx        = canvas.getContext("2d");
+
+  let isPlaying = false;
+  let audioCtx, analyser, src;
+  let dataArray, bufferLength;
+  let animationId;
+
+  // Resize canvas to fit container
+  function resizeCanvas() {
+    canvas.width = canvas.clientWidth;
+    canvas.height = canvas.clientHeight;
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  // 1. LOAD MUSIC
+  fileInput.onchange = function () {
+    const file = this.files[0];
+    if(!file) return;
+
+    titleDisplay.innerText = file.name.replace(/\.[^/.]+$/, ""); // remove extension
+    audio.src = URL.createObjectURL(file);
+    audio.load();
+    
+    // Reset UI
+    playBtn.className = "fa-solid fa-circle-play btn play-btn-large";
+    progressBar.value = 0;
+    isPlaying = false;
+    
+    // Setup Audio Context if not exists
+    if(!audioCtx) setupAudioContext();
+  };
+
+  // 2. PLAY / PAUSE
+  playBtn.onclick = function () {
+    if (!audio.src) return alert("Please load a track first!");
+
+    if (!audioCtx) setupAudioContext();
+
+    // Resume context if suspended (browser policy)
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+
+    if (!isPlaying) {
+      audio.play();
+      playBtn.className = "fa-solid fa-circle-pause btn play-btn-large";
+      renderFrame(); // Start Visualizer
+    } else {
+      audio.pause();
+      playBtn.className = "fa-solid fa-circle-play btn play-btn-large";
+      cancelAnimationFrame(animationId); // Stop Visualizer to save battery
+    }
+    isPlaying = !isPlaying;
+  };
+
+  // 3. PROGRESS BAR LOGIC
+  // Update slider as song plays
+  audio.ontimeupdate = function() {
+    if(audio.duration) {
+      const progressPercent = (audio.currentTime / audio.duration) * 100;
+      progressBar.value = progressPercent;
+      
+      // Update time text
+      currTimeEl.innerText = formatTime(audio.currentTime);
+      durTimeEl.innerText = formatTime(audio.duration);
+    }
+  };
+
+  // SKIP functionality (User drags slider)
+  progressBar.addEventListener('input', function() {
+    const seekTime = (progressBar.value / 100) * audio.duration;
+    audio.currentTime = seekTime;
+  });
+
+  function formatTime(seconds) {
+    const min = Math.floor(seconds / 60);
+    const sec = Math.floor(seconds % 60);
+    return min + ":" + (sec < 10 ? "0" + sec : sec);
+  }
+
+  // 4. SETUP AUDIO CONTEXT & ANALYSER
+  function setupAudioContext() {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    src = audioCtx.createMediaElementSource(audio);
+    analyser = audioCtx.createAnalyser();
+    
+    src.connect(analyser);
+    analyser.connect(audioCtx.destination);
+
+    analyser.fftSize = 256; // Controls bar count (higher = more bars)
+    bufferLength = analyser.frequencyBinCount;
+    dataArray = new Uint8Array(bufferLength);
+  }
+
+  // 5. THE SUPER MODEL DISCO VISUALIZER
+  function renderFrame() {
+    animationId = requestAnimationFrame(renderFrame);
+    analyser.getByteFrequencyData(dataArray);
+
+    const w = canvas.width;
+    const h = canvas.height;
+    const barWidth = (w / bufferLength) * 2.5;
+    let barHeight;
+    let x = 0;
+
+    // Clear canvas for next frame
+    ctx.clearRect(0, 0, w, h);
+
+    // Dynamic Disco Color Cycle
+    const time = Date.now() * 0.05;
+    
+    for (let i = 0; i < bufferLength; i++) {
+      barHeight = dataArray[i] * 1.2; // Scale up height
+      
+      // Create Gradient based on frequency and time
+      // This creates the "Disco" rainbow effect
+      const hue = (i * 5 + time) % 360; 
+      const gradient = ctx.createLinearGradient(0, h/2 - barHeight, 0, h/2 + barHeight);
+      gradient.addColorStop(0, `hsla(${hue}, 100%, 50%, 0)`);
+      gradient.addColorStop(0.5, `hsla(${hue}, 100%, 60%, 1)`);
+      gradient.addColorStop(1, `hsla(${hue}, 100%, 50%, 0)`);
+
+      ctx.fillStyle = gradient;
+
+      // Draw Mirrored Bars (from center outwards vertical)
+      // Top half
+      ctx.fillRect(x, h/2 - barHeight/2, barWidth, barHeight); 
+      
+      x += barWidth + 1; // +1 for spacing
+    }
+  }
+
+</script>
+
+</body>
+</html>
