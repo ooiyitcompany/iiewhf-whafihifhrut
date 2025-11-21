@@ -3,18 +3,16 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Ultra Modern Music Player</title>
+<title>OOIY HYPER-BEAT PLAYER (Waveform Ver.)</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
 
 <style>
-  /* --- BASE RESET & FONTS --- */
+  /* --- 1. CORE & BACKGROUND --- */
   * { box-sizing: border-box; outline: none; user-select: none; }
   
   body {
     margin: 0;
-    background-color: #050505;
-    /* Deep animated background */
-    background-image: radial-gradient(circle at 50% 50%, #1a0b2e 0%, #000000 100%);
+    background-color: #000;
     font-family: 'Segoe UI', sans-serif;
     display: flex;
     justify-content: center;
@@ -24,18 +22,26 @@
     color: #fff;
   }
 
-  /* --- THE GLASS FRAME WITH DISCO BORDER --- */
+  /* Deep Space Background */
+  .bg-anim {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: radial-gradient(circle at 50% 50%, #0f001f 0%, #000000 90%);
+    z-index: -2;
+  }
+
+  /* --- 2. THE PLAYER CARD (The 0.1s Strobe) --- */
   .player-card {
     position: relative;
     width: 90%;
-    max-width: 500px;
+    max-width: 450px;
     height: 600px;
     
-    /* Base Glass Style */
-    background: rgba(255, 255, 255, 0.03);
-    backdrop-filter: blur(15px);
-    -webkit-backdrop-filter: blur(15px);
-    border-radius: 30px;
+    /* Glass Effect */
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(30px);
+    -webkit-backdrop-filter: blur(30px);
+    border-radius: 35px;
     
     /* Layout */
     display: flex;
@@ -45,139 +51,121 @@
     padding: 30px;
     z-index: 10;
     
-    /* THE DISCO BORDER ANIMATION */
-    border: 15px solid transparent; /* Width of the neon border */
-    animation: discoGlow 8s linear infinite;
+    /* BORDER STROBE: 0.1s Speed */
+    border: 20px solid #fff;
+    box-shadow: 0 0 40px rgba(0,0,0,0.8);
+    animation: hyperStrobe 0.1s steps(4) infinite; 
+    transition: transform 0.05s ease; /* For bass kick effect */
   }
 
-  /* NEW: The Disco Color Cycle Animation */
-  @keyframes discoGlow {
-    0% {
-      border-color: #ff0000;
-      box-shadow: 0 0 20px rgba(255, 0, 0, 0.4), inset 0 0 10px rgba(255, 0, 0, 0.2);
-    }
-    15% {
-      border-color: #ff00ff;
-      box-shadow: 0 0 20px rgba(255, 0, 255, 0.4), inset 0 0 10px rgba(255, 0, 255, 0.2);
-    }
-    30% {
-      border-color: #0000ff;
-      box-shadow: 0 0 20px rgba(0, 0, 255, 0.4), inset 0 0 10px rgba(0, 0, 255, 0.2);
-    }
-    45% {
-      border-color: #00ffff;
-      box-shadow: 0 0 20px rgba(0, 255, 255, 0.4), inset 0 0 10px rgba(0, 255, 255, 0.2);
-    }
-    60% {
-      border-color: #00ff00;
-      box-shadow: 0 0 20px rgba(0, 255, 0, 0.4), inset 0 0 10px rgba(0, 255, 0, 0.2);
-    }
-    75% {
-      border-color: #ffff00;
-      box-shadow: 0 0 20px rgba(255, 255, 0, 0.4), inset 0 0 10px rgba(255, 255, 0, 0.2);
-    }
-    100% {
-      border-color: #ff0000;
-      box-shadow: 0 0 20px rgba(255, 0, 0, 0.4), inset 0 0 10px rgba(255, 0, 0, 0.2);
-    }
+  /* The 0.1s Color Cycle */
+  /* The 0.1s Color Cycle - UPDATED WITH MORE COLORS */
+  @keyframes hyperStrobe {
+    0%   { border-color: #ff0000; box-shadow: 0 0 40px #ff0000; } /* Red */
+    12.5%  { border-color: #ff8c00; box-shadow: 0 0 40px #ff8c00; } /* Orange */
+    25%  { border-color: #ffff00; box-shadow: 0 0 40px #ffff00; } /* Yellow */
+    37.5% { border-color: #00ff00; box-shadow: 0 0 40px #00ff00; } /* Green */
+    50%  { border-color: #00ffff; box-shadow: 0 0 40px #00ffff; } /* Cyan */
+    62.5% { border-color: #0000ff; box-shadow: 0 0 40px #0000ff; } /* Blue */
+    75%  { border-color: #8a2be2; box-shadow: 0 0 40px #8a2be2; } /* Blue Violet (Purple) */
+    87.5% { border-color: #ff00ff; box-shadow: 0 0 40px #ff00ff; } /* Magenta */
+    100% { border-color: #ff0000; box-shadow: 0 0 40px #ff0000; } /* Red (loops back) */
   }
-
-  /* --- CANVAS VISUALIZER (The Disco Wave) --- */
+  
+  /* --- 3. VISUALIZER CANVAS --- */
   canvas {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    border-radius: 28px; /* Slightly less than card to fit inside border */
+    border-radius: 30px;
     z-index: -1; 
-    opacity: 0.8;
+    opacity: 1;
+    mix-blend-mode: screen; /* Makes colors pop on black */
   }
 
-  /* --- TOP SECTION: LOGO & FILE --- */
+  /* --- 4. UI ELEMENTS --- */
   .header {
     width: 100%;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
+    z-index: 20;
   }
 
   .logo {
-    font-weight: 700;
-    letter-spacing: 2px;
-    font-size: 14px;
-    color: rgba(255,255,255,0.8);
-    text-transform: uppercase;
-    text-shadow: 0 0 5px rgba(255,255,255,0.5);
+    font-weight: 900;
+    letter-spacing: 3px;
+    font-size: 18px;
+    font-style: italic;
+    color: #fff;
+    text-shadow: 0 0 10px rgba(255,255,255,0.8);
   }
 
   .upload-btn {
-    background: linear-gradient(135deg, #ff00d4, #00ddff);
-    border: none;
-    border-radius: 20px;
-    padding: 8px 16px;
-    font-size: 12px;
-    font-weight: bold;
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.4);
+    border-radius: 10px;
+    padding: 10px 20px;
+    font-size: 10px;
+    font-weight: 800;
     color: #fff;
     cursor: pointer;
-    box-shadow: 0 4px 15px rgba(0, 221, 255, 0.4);
-    transition: transform 0.2s;
+    text-transform: uppercase;
+    transition: 0.2s;
   }
-  .upload-btn:active { transform: scale(0.95); }
+  .upload-btn:hover { background: #fff; color: #000; box-shadow: 0 0 20px #fff; }
   input[type="file"] { display: none; }
 
-  /* --- MIDDLE: ARTWORK PLACEHOLDER --- */
+  /* --- 5. CENTRAL ART (Beat Reactor) --- */
   .disk-wrapper {
-    width: 180px;
-    height: 180px;
+    width: 240px;
+    height: 240px;
     border-radius: 50%;
-    background: radial-gradient(circle, #222, #000);
-    border: 2px solid rgba(255,255,255,0.1);
-    box-shadow: 0 0 30px rgba(0,0,0,0.8);
+    background: #000;
+    border: 4px solid rgba(255,255,255,0.1);
     display: flex;
     justify-content: center;
     align-items: center;
     position: relative;
-    margin-top: 20px;
+    z-index: 5;
+    box-shadow: 0 0 60px rgba(0,0,0,0.9);
   }
   
-  .disk-wrapper i {
-    font-size: 60px;
+  .disk-art {
+    font-size: 100px;
     color: rgba(255,255,255,0.1);
-    animation: floatIcon 3s ease-in-out infinite;
+    transition: transform 0.05s;
   }
 
-  @keyframes floatIcon {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-5px); }
-  }
-
-  /* --- CONTROLS SECTION --- */
+  /* --- 6. CONTROLS --- */
   .controls-area {
     width: 100%;
     display: flex;
     flex-direction: column;
-    gap: 15px;
+    gap: 20px;
+    z-index: 20;
   }
 
-  /* Song Info */
-  .song-info {
-    text-align: center;
-  }
+  .song-info { text-align: center; }
+  
   .song-title {
-    font-size: 18px;
-    font-weight: 600;
+    font-size: 22px;
+    font-weight: 800;
     margin: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    text-shadow: 0 0 10px rgba(255,255,255,0.3);
+    text-shadow: 0 0 15px rgba(255,255,255,0.4);
   }
+  
   .artist-name {
     font-size: 12px;
-    color: rgba(255,255,255,0.5);
-    margin-top: 5px;
+    color: #aaa;
+    margin-top: 8px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
   }
 
   /* Progress Bar */
@@ -185,71 +173,64 @@
     width: 100%;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 15px;
   }
   
   .time-display {
-    font-size: 11px;
-    font-family: monospace;
-    color: rgba(255,255,255,0.7);
-    width: 35px;
+    font-size: 10px;
+    font-weight: bold;
+    color: #fff;
+    width: 40px;
   }
 
-  /* Custom Range Slider */
   input[type="range"] {
     -webkit-appearance: none;
     width: 100%;
-    height: 4px;
+    height: 6px;
     background: rgba(255,255,255,0.1);
-    border-radius: 2px;
+    border-radius: 3px;
     cursor: pointer;
-    position: relative;
+    overflow: hidden;
   }
-  
   input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
-    height: 12px;
-    width: 12px;
-    border-radius: 50%;
+    height: 6px; width: 6px;
     background: #fff;
-    box-shadow: 0 0 10px #fff, 0 0 20px #ff00d4;
-    margin-top: -4px; /* Center thumb */
-    transition: transform 0.1s;
-  }
-  
-  input[type="range"]::-webkit-slider-thumb:hover {
-    transform: scale(1.5);
+    box-shadow: -400px 0 0 400px #00ffff;
   }
 
-  /* Main Buttons */
+  /* Buttons */
   .buttons {
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 30px;
-    margin-top: 10px;
+    gap: 40px;
   }
 
   .btn {
     color: #fff;
-    font-size: 20px;
+    font-size: 26px;
     cursor: pointer;
-    transition: color 0.2s, transform 0.1s;
+    transition: 0.2s;
+    opacity: 0.6;
   }
+  .btn:hover { opacity: 1; color: #00ffff; transform: scale(1.2); text-shadow: 0 0 15px #00ffff;}
   
-  .btn:hover { color: #00ddff; }
-  .btn:active { transform: scale(0.9); }
-
   .play-btn-large {
-    font-size: 50px;
-    background: linear-gradient(to bottom right, #ff00d4, #7000ff);
+    font-size: 70px;
+    opacity: 1;
+    background: linear-gradient(to right, #00ffff, #ff00ff);
     -webkit-background-clip: text;
     color: transparent;
-    filter: drop-shadow(0 0 8px rgba(112, 0, 255, 0.6));
+    filter: drop-shadow(0 0 5px rgba(255,255,255,0.5));
   }
-  .play-btn-large:hover {
-    transform: scale(1.1);
-    filter: drop-shadow(0 0 15px rgba(112, 0, 255, 0.9));
+  .play-btn-large:hover { transform: scale(1.1); filter: drop-shadow(0 0 25px #00ffff); }
+
+  /* Disabled buttons for single track mode */
+  .btn-disabled {
+    opacity: 0.2 !important;
+    cursor: default !important;
+    pointer-events: none;
   }
 
 </style>
@@ -257,26 +238,27 @@
 
 <body>
 
-<div class="player-card">
+<div class="bg-anim"></div>
+
+<div class="player-card" id="card">
   <canvas id="visualizer"></canvas>
 
   <div class="header">
-    <div class="logo"><i class="fa-solid fa-wave-square"></i> OO1Y</div>
+    <div class="logo">OOIY X-TREME</div>
     <label class="upload-btn" for="musicFile">
-      <i class="fa-solid fa-cloud-arrow-up"></i> LOAD TRACK
+      <i class="fa-solid fa-file-audio"></i> LOAD TRACK
     </label>
     <input type="file" id="musicFile" accept="audio/*">
   </div>
 
   <div class="disk-wrapper">
-    <i class="fa-solid fa-music"></i>
+    <i class="fa-solid fa-music disk-art" id="diskIcon"></i>
   </div>
 
   <div class="controls-area">
-    
     <div class="song-info">
-      <h3 class="song-title" id="titleDisplay">No Audio Loaded</h3>
-      <p class="artist-name">Select a file to begin disco</p>
+      <h3 class="song-title" id="titleDisplay">WAITING FOR BEAT...</h3>
+      <p class="artist-name" id="statusText">Select a file to begin</p>
     </div>
 
     <div class="progress-container">
@@ -286,140 +268,166 @@
     </div>
 
     <div class="buttons">
-      <i class="fa-solid fa-backward-step btn"></i>
+      <i class="fa-solid fa-backward-step btn btn-disabled"></i>
       <i id="playBtn" class="fa-solid fa-circle-play btn play-btn-large"></i>
-      <i class="fa-solid fa-forward-step btn"></i>
+      <i class="fa-solid fa-forward-step btn btn-disabled"></i>
     </div>
-
   </div>
 </div>
 
 <script>
-  const fileInput  = document.getElementById("musicFile");
-  const playBtn    = document.getElementById("playBtn");
-  const audio      = new Audio();
-  const progressBar= document.getElementById("progressBar");
-  const currTimeEl = document.getElementById("currTime");
-  const durTimeEl  = document.getElementById("durTime");
-  const titleDisplay = document.getElementById("titleDisplay");
-  const canvas     = document.getElementById("visualizer");
-  const ctx        = canvas.getContext("2d");
+  /* --- SETUP --- */
+  const card        = document.getElementById("card");
+  const fileInput   = document.getElementById("musicFile"); // Changed ID
+  const playBtn     = document.getElementById("playBtn");
+  const progressBar = document.getElementById("progressBar");
+  const titleDisplay= document.getElementById("titleDisplay");
+  const statusText  = document.getElementById("statusText");
+  const currTimeEl  = document.getElementById("currTime");
+  const durTimeEl   = document.getElementById("durTime");
+  const canvas      = document.getElementById("visualizer");
+  const ctx         = canvas.getContext("2d");
+  const diskIcon    = document.getElementById("diskIcon");
 
+  let audio = new Audio();
   let isPlaying = false;
+
+  // Audio Context & Visuals
   let audioCtx, analyser, src;
   let dataArray, bufferLength;
-  let animationId;
 
-  // Resize canvas to fit container
-  function resizeCanvas() {
+  // Resize Canvas
+  function resize() {
     canvas.width = canvas.clientWidth;
     canvas.height = canvas.clientHeight;
   }
-  window.addEventListener('resize', resizeCanvas);
-  resizeCanvas();
+  window.addEventListener('resize', resize);
+  resize();
 
-  // 1. LOAD MUSIC
-  fileInput.onchange = function () {
-    const file = this.files[0];
+  // --- 1. SINGLE FILE LOAD LOGIC ---
+  fileInput.onchange = function(e) {
+    const file = e.target.files[0];
     if(!file) return;
 
-    titleDisplay.innerText = file.name.replace(/\.[^/.]+$/, ""); // remove extension
+    // Update Title
+    titleDisplay.innerText = file.name.replace(/\.[^/.]+$/, "");
+    statusText.innerText = "SINGLE TRACK MODE";
+    
+    // Load Audio
     audio.src = URL.createObjectURL(file);
     audio.load();
-    
-    // Reset UI
-    playBtn.className = "fa-solid fa-circle-play btn play-btn-large";
     progressBar.value = 0;
-    isPlaying = false;
     
-    // Setup Audio Context if not exists
+    // Reset Play Button
+    isPlaying = false;
+    playBtn.className = "fa-solid fa-circle-play btn play-btn-large";
+
     if(!audioCtx) setupAudioContext();
+    
+    // Optional: Auto play on load
+    playAudio();
   };
 
-  // 2. PLAY / PAUSE
-  playBtn.onclick = function () {
-    if (!audio.src) return alert("Please load a track first!");
+  // --- 2. CONTROLS ---
+  function playAudio() {
+    if(!audio.src) return;
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
 
-    if (!audioCtx) setupAudioContext();
-
-    // Resume context if suspended (browser policy)
-    if (audioCtx.state === 'suspended') {
-      audioCtx.resume();
-    }
-
-    if (!isPlaying) {
-      audio.play();
-      playBtn.className = "fa-solid fa-circle-pause btn play-btn-large";
-      renderFrame(); // Start Visualizer
-    } else {
-      audio.pause();
-      playBtn.className = "fa-solid fa-circle-play btn play-btn-large";
-      cancelAnimationFrame(animationId); // Stop Visualizer to save battery
-    }
-    isPlaying = !isPlaying;
-  };
-
-  // 3. PROGRESS BAR LOGIC
-  // Update slider as song plays
-  audio.ontimeupdate = function() {
-    if(audio.duration) {
-      const progressPercent = (audio.currentTime / audio.duration) * 100;
-      progressBar.value = progressPercent;
-      
-      // Update time text
-      currTimeEl.innerText = formatTime(audio.currentTime);
-      durTimeEl.innerText = formatTime(audio.duration);
-    }
-  };
-
-  // SKIP functionality (User drags slider)
-  progressBar.addEventListener('input', function() {
-    const seekTime = (progressBar.value / 100) * audio.duration;
-    audio.currentTime = seekTime;
-  });
-
-  function formatTime(seconds) {
-    const min = Math.floor(seconds / 60);
-    const sec = Math.floor(seconds % 60);
-    return min + ":" + (sec < 10 ? "0" + sec : sec);
+    audio.play();
+    isPlaying = true;
+    playBtn.className = "fa-solid fa-circle-pause btn play-btn-large";
+    renderVisuals();
   }
 
-  // 4. SETUP AUDIO CONTEXT & ANALYSER
+  function pauseAudio() {
+    audio.pause();
+    isPlaying = false;
+    playBtn.className = "fa-solid fa-circle-play btn play-btn-large";
+  }
+
+  playBtn.onclick = () => {
+    if(!audio.src) return alert("Please Load a Track first.");
+    if(isPlaying) pauseAudio(); else playAudio();
+  };
+
+  // Progress
+  audio.ontimeupdate = () => {
+    if(audio.duration) {
+      const pct = (audio.currentTime / audio.duration) * 100;
+      progressBar.value = pct;
+      currTimeEl.innerText = fmtTime(audio.currentTime);
+      durTimeEl.innerText = fmtTime(audio.duration);
+    }
+  };
+
+  progressBar.addEventListener('input', () => {
+    const time = (progressBar.value / 100) * audio.duration;
+    audio.currentTime = time;
+  });
+
+  audio.onended = () => {
+    isPlaying = false;
+    playBtn.className = "fa-solid fa-circle-play btn play-btn-large";
+    progressBar.value = 0;
+  };
+
+  function fmtTime(s) {
+    const m = Math.floor(s/60);
+    const sc = Math.floor(s%60);
+    return m + ":" + (sc<10?"0"+sc:sc);
+  }
+
+  // --- 3. AUDIO SYSTEM ---
   function setupAudioContext() {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     src = audioCtx.createMediaElementSource(audio);
     analyser = audioCtx.createAnalyser();
-    
     src.connect(analyser);
     analyser.connect(audioCtx.destination);
-
-    analyser.fftSize = 256; // Controls bar count (higher = more bars)
+    
+    analyser.fftSize = 256; 
     bufferLength = analyser.frequencyBinCount;
     dataArray = new Uint8Array(bufferLength);
   }
 
-  // 5. THE SUPER MODEL DISCO VISUALIZER
-  function renderFrame() {
-    animationId = requestAnimationFrame(renderFrame);
+  // --- 4. HYBRID VISUALIZER (Code 1 Style + Code 2 Waveform) ---
+  function renderVisuals() {
+    if(!isPlaying) return;
+    requestAnimationFrame(renderVisuals);
+    
     analyser.getByteFrequencyData(dataArray);
-
+    
     const w = canvas.width;
     const h = canvas.height;
+    
+    ctx.clearRect(0, 0, w, h);
+    
+    // --- PART A: KICK DETECTION (From Code 1) ---
+    // Keeps the card bouncing on beat
+    let bass = 0;
+    for(let i=0; i<10; i++) bass += dataArray[i];
+    bass = bass / 10; 
+    
+    if(bass > 220) {
+       card.style.transform = `scale(1.02)`;
+       diskIcon.style.color = "#fff";
+    } else {
+       card.style.transform = `scale(1)`;
+       diskIcon.style.color = "rgba(255,255,255,0.1)";
+    }
+
+    // --- PART B: WAVEFORM DRAWING (From Code 2) ---
     const barWidth = (w / bufferLength) * 2.5;
     let barHeight;
     let x = 0;
-
-    // Clear canvas for next frame
-    ctx.clearRect(0, 0, w, h);
-
-    // Dynamic Disco Color Cycle
-    const time = Date.now() * 0.05;
     
-    for (let i = 0; i < bufferLength; i++) {
-      barHeight = dataArray[i] * 1.2; // Scale up height
+    // Dynamic Color Cycle for the bars
+    const time = Date.now() * 0.05;
+
+    for(let i=0; i < bufferLength; i++) {
+      barHeight = dataArray[i] * 1.4; // Slightly taller for this layout
       
-      // Create Gradient based on frequency and time
-      // This creates the "Disco" rainbow effect
+      // Create Gradient
       const hue = (i * 5 + time) % 360; 
       const gradient = ctx.createLinearGradient(0, h/2 - barHeight, 0, h/2 + barHeight);
       gradient.addColorStop(0, `hsla(${hue}, 100%, 50%, 0)`);
@@ -428,11 +436,10 @@
 
       ctx.fillStyle = gradient;
 
-      // Draw Mirrored Bars (from center outwards vertical)
-      // Top half
+      // Draw Mirrored Bars (Vertical Center)
       ctx.fillRect(x, h/2 - barHeight/2, barWidth, barHeight); 
       
-      x += barWidth + 1; // +1 for spacing
+      x += barWidth + 1; 
     }
   }
 
