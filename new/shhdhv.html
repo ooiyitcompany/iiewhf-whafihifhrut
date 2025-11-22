@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fast Video Merge — Ooiy</title>
+
+<style>
+    body {
+        margin: 0;
+        background: #0d1117;
+        color: #fff;
+        font-family: Arial;
+        text-align: center;
+        padding: 20px;
+    }
+    .box {
+        border: 2px dashed #3a3f47;
+        padding: 20px;
+        border-radius: 14px;
+        margin-bottom: 20px;
+    }
+    button {
+        background: #00aaff;
+        padding: 14px 30px;
+        border: none;
+        border-radius: 8px;
+        color: #fff;
+        margin-top: 15px;
+        font-size: 18px;
+        width: 100%;
+        max-width: 500px;
+    }
+    #log {
+        margin-top: 20px;
+        background: #161b22;
+        color: #8b949e;
+        padding: 15px;
+        border-radius: 8px;
+        height: 200px;
+        overflow-y: auto;
+        text-align: left;
+        font-size: 14px;
+    }
+</style>
+</head>
+
+<body>
+
+<h2>Merge Videos (FAST FFmpeg WASM)</h2>
+
+<div class="box">
+    <input type="file" id="videos" multiple accept="video/*">
+</div>
+
+<button onclick="mergeVideos()">Merge Now</button>
+
+<div id="log">Loading FFmpeg...</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js"></script>
+
+<script>
+
+const logBox = document.getElementById("log");
+
+function log(msg) {
+    logBox.innerHTML += "<br>" + msg;
+    logBox.scrollTop = logBox.scrollHeight;
+}
+
+const ffmpeg = FFmpeg.createFFmpeg({
+    log: true,
+    corePath: "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/ffmpeg-core.js"
+});
+
+(async () => {
+    log("Initializing FFmpeg (Fast CDN)...");
+    await ffmpeg.load();
+    log("FFmpeg Ready ✓");
+})();
+
+async function mergeVideos() {
+    const files = document.getElementById("videos").files;
+
+    if (files.length === 0) {
+        alert("Select at least 2 videos");
+        return;
+    }
+
+    log("Reading files...");
+
+    // Write all files into FFmpeg FS
+    let list = "";
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const name = `file${i}.mp4`;
+        await ffmpeg.FS("writeFile", name, await fetchFile(file));
+        list += `file ${name}\n`;
+    }
+
+    // Create file list
+    ffmpeg.FS("writeFile", "input.txt", list);
+
+    log("Merging videos (this is fast)...");
+
+    await ffmpeg.run(
+        "-f", "concat",
+        "-safe", "0",
+        "-i", "input.txt",
+        "-c:v", "libvpx-vp9",
+        "-b:v", "1M",
+        "output.webm"
+    );
+
+    log("Exporting final video...");
+
+    const data = ffmpeg.FS("readFile", "output.webm");
+
+    const url = URL.createObjectURL(new Blob([data.buffer], { type: "video/webm" }));
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "merged.webm";
+    a.click();
+
+    log("Done! File Downloaded ✓");
+}
+
+</script>
+
+</body>
+</html>
