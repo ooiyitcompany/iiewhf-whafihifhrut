@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Ooiy — Premium & Credits</title>
+    <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+    <style>
+        :root{
+            --bg-dark: #121212; 
+            --text-light: #f0f0f0; 
+            --card-dark: #1e1e1e; 
+            --accent-gold: #ffae00;
+        }
+        *{margin:0;padding:0;box-sizing:border-box;font-family:'Inter',sans-serif;}
+        body{
+            background-color: var(--bg-dark);
+            min-height: 100vh;
+            color: var(--text-light);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        .header-bar {
+            width: 100%;
+            max-width: 480px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            margin-bottom: 30px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .back-btn {
+            background: none;
+            border: none;
+            color: var(--text-light);
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+        .credit-display {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--accent-gold);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .content-wrap {
+            width: 100%;
+            max-width: 450px;
+            text-align: center;
+        }
+        h1 {
+            font-size: 2rem;
+            color: var(--accent-gold);
+            margin-bottom: 10px;
+        }
+        p {
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 20px;
+        }
+        .card {
+            background: var(--card-dark);
+            padding: 30px 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            text-align: center;
+        }
+        .card h2 {
+            font-size: 1.6rem;
+            margin-bottom: 15px;
+            color: var(--text-light);
+        }
+        .card button {
+            width: 100%;
+            max-width: 300px;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 25px;
+            font-size: 1.1rem;
+            transition: transform 0.2s;
+        }
+        .watch-ad-btn {
+            background: linear-gradient(90deg, #33ccff, #007bff);
+            color: var(--bg-dark);
+        }
+        .card button:hover {
+            transform: translateY(-2px);
+        }
+        .info-note {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.7);
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header-bar">
+    <button class="back-btn" onclick="history.back()">
+        <i class="fas fa-arrow-left"></i>
+    </button>
+    <div class="credit-display">
+        <i class="fas fa-star"></i>
+        Your Credits: <span id="creditBalance">0</span>
+    </div>
+</div>
+
+<div class="content-wrap">
+    <h1><i class="fas fa-gem"></i> Credit Rewards</h1>
+    <p>Your credits are used to unlock **high-resolution downloads** and **watermark removal**.</p>
+
+    <div class="card">
+        <h2>Earn Free Credits Now!</h2>
+        <p style="text-align: center;">Gain credits by watching a Reward video advertisement.</p>
+        
+        <button class="watch-ad-btn" onclick="watchAds()">
+            <i class="fas fa-video"></i> Watch Reward Ads for 5 + 1 Credits
+        </button>
+
+        <div class="info-note">
+            Each video completed successfully grants you a total of **6 credits**.
+        </div>
+    </div>
+</div>
+
+<script>
+    const CREDITS_KEY = 'ooiy_watermark_credits';
+    const REWARD_AMOUNT = 6; // 5 + 1
+
+    function refreshCreditsUI() {
+        const credits = parseInt(localStorage.getItem(CREDITS_KEY) || '0', 10);
+        document.getElementById('creditBalance').textContent = credits;
+    }
+
+    // --- NEW FUNCTION TO ADD CREDITS AND NAVIGATE ---
+    function watchAds() {
+        // 1. Get current credits
+        let currentCredits = parseInt(localStorage.getItem(CREDITS_KEY) || '0', 10);
+        
+        // 2. Add the reward amount (5 + 1 = 6)
+        currentCredits += REWARD_AMOUNT;
+        
+        // 3. Save the new total back to local storage
+        localStorage.setItem(CREDITS_KEY, String(currentCredits));
+        
+        // 4. Navigate to the confirmation/pro page
+        // We pass the added amount as a URL parameter for a better confirmation message on pro.html
+        window.location.href = 'pro.html?added=' + REWARD_AMOUNT + '&newTotal=' + currentCredits;
+    }
+
+    window.onload = refreshCreditsUI;
+</script>
+
+</body>
+</html>
