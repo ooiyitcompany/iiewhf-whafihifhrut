@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OOIY X-TREME 5.1: BRIGHT NEON DISCO PLAYER</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+
+<style>
+    /* --- 1. CORE & BACKGROUND (FULL VIEWPORT LAYOUT) --- */
+    * { box-sizing: border-box; outline: none; user-select: none; }
+    
+    body {
+        margin: 0; background-color: #000; font-family: 'Segoe UI', sans-serif;
+        display: flex; justify-content: center; align-items: center;
+        height: 100vh; width: 100vw; overflow: hidden; color: #fff;
+    }
+
+    .bg-anim {
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        background: radial-gradient(circle at 50% 50%, #0f001f 0%, #000000 90%);
+        transition: background 0.1s ease, transform 0.1s linear; 
+        z-index: -2;
+        animation: bgRotate 60s linear infinite; 
+    }
+    @keyframes bgRotate {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+    #bg-visualizer { 
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;
+        pointer-events: none;
+        opacity: 0.6;
+    }
+
+    /* --- 2. THE PLAYER CARD (DYNAMIC SOFT NEON GLOWING BORDER) --- */
+    .player-card {
+        position: relative; 
+        width: 100%; height: 100%; 
+        background: rgba(0, 0, 0, 0);
+        border-radius: 0;
+        display: flex; flex-direction: column; align-items: center;
+        justify-content: space-between; padding: 0; z-index: 10;
+        
+        /* BORDER STYLE - FIXED THICKNESS, DYNAMIC COLOR */
+        border-style: solid;
+        border-width: 20px;
+        /* Initial color set to the first color in the JS palette */
+        border-color: #FF00FF; 
+        transition: border-color 0.05s ease, box-shadow 0.05s ease;
+        
+        box-shadow: none; 
+        
+        animation: none;
+    }
+
+    /* Header & Video */
+    .header {
+        position: absolute; top: 0; left: 0; right: 0; 
+        padding: 15px 30px; 
+        display: flex; justify-content: space-between; align-items: center;
+        z-index: 30; 
+        background: linear-gradient(to bottom, rgba(0,0,0,0.7), rgba(0,0,0,0));
+        /* ADDED TRANSITIONS for hiding */
+        opacity: 1; 
+        pointer-events: all;
+        transition: opacity 0.5s ease-in-out; 
+    }
+    .header.hide {
+        opacity: 0;
+        pointer-events: none;
+    }
+    .logo { font-size: 20px; font-weight: bold; color: #00ffff; }
+    .upload-btn {
+        padding: 8px 15px; background: rgba(0,0,0,0.5); border: 2px solid #ff00ff;
+        border-radius: 5px; cursor: pointer; font-size: 14px;
+        transition: 0.2s;
+    }
+    .upload-btn:hover { background: #ff00ff; color: #000; }
+    #videoFile { display: none; }
+
+    .video-wrapper {
+        position: relative;
+        width: 100%; height: 100%;
+        background: #000;
+        overflow: hidden;
+        display: flex; justify-content: center; align-items: center;
+        
+        box-shadow: none; 
+        transition: box-shadow 0.05s ease;
+    }
+    
+    #videoPlayer {
+        width: 100%;
+        height: 100%;
+        object-fit: cover; 
+        cursor: pointer;
+    }
+
+    /* Controls */
+    .controls-area {
+        position: absolute; bottom: 0; left: 0; right: 0;
+        padding: 15px 30px 20px;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        z-index: 20;
+        pointer-events: all; 
+        opacity: 1;
+        transition: opacity 0.3s ease-in-out;
+        background: linear-gradient(to top, rgba(0,0,0,0.8), rgba(0,0,0,0));
+    }
+    .controls-area.hide {
+        opacity: 0;
+        pointer-events: none; 
+    }
+
+    .progress-container {
+        width: 100%; display: flex; align-items: center; gap: 10px;
+        order: 1;
+    }
+    .time-display { font-size: 14px; font-weight: bold; width: 45px; }
+
+    .progress-bar-modern {
+        -webkit-appearance: none;
+        width: 100%;
+        height: 4px; 
+        background: rgba(255, 255, 255, 0.2); 
+        border-radius: 2px;
+        cursor: pointer;
+        overflow: hidden;
+    }
+
+    .progress-bar-modern::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        height: 4px;
+        width: 10px; 
+        background: #00ffff;
+        box-shadow: -400px 0 0 400px #ff00ff;
+    }
+    .progress-bar-modern::-moz-range-thumb {
+        background: #ff00ff;
+        border: none;
+        border-radius: 0;
+    }
+    .progress-bar-modern::-moz-range-track {
+        background: rgba(255, 255, 255, 0.2);
+    }
+    
+    .utility-bar {
+        width: 100%; display: flex; justify-content: space-between; align-items: center;
+        margin-bottom: 5px; order: 0; 
+    }
+    .main-buttons {
+        display: flex; justify-content: center; align-items: center; gap: 40px;
+        order: 2; 
+    }
+    .btn {
+        color: #fff; font-size: 26px; cursor: pointer; transition: 0.2s;
+        opacity: 0.8;
+    }
+    .btn:hover { opacity: 1; color: #ff00ff; transform: scale(1.1); text-shadow: 0 0 15px #ff00ff;}
+    
+    .play-btn-large {
+        font-size: 70px; opacity: 1;
+        background: linear-gradient(to right, #00ffff, #ff00ff);
+        -webkit-background-clip: text; color: transparent;
+        filter: drop-shadow(0 0 5px rgba(255,255,255,0.5));
+    }
+    .play-btn-large:hover { transform: scale(1.05); filter: drop-shadow(0 0 25px #00ffff); }
+    
+    #cc-overlay {
+        position: absolute; bottom: 10%; left: 50%; transform: translateX(-50%);
+        text-align: center; padding: 5px 10px; background: rgba(0, 0, 0, 0.7);
+        color: white; font-size: 24px; font-weight: bold; text-shadow: 2px 2px 4px #000;
+        border-radius: 5px; max-width: 80%; display: none; pointer-events: none; z-index: 40;
+    }
+</style>
+</head>
+
+<body>
+
+<div class="bg-anim" id="bgAnim">
+    <canvas id="bg-visualizer"></canvas>
+</div>
+
+<div class="player-card" id="card">
+    <div class="header" id="headerArea"> <div class="logo">OOIY X-TREME 5.1</div>
+        <label class="upload-btn" for="videoFile">
+            <i class="fa-solid fa-film"></i> LOAD VIDEO
+        </label>
+        <input type="file" type="file" id="videoFile" accept="video/*">
+    </div>
+
+    <div class="video-wrapper" id="videoWrapper">
+        <video id="videoPlayer" preload="metadata" playsinline></video>
+        <div id="cc-overlay"></div> 
+    </div>
+
+    <div class="controls-area" id="controlsArea">
+        <div class="utility-bar">
+            <div style="display: flex; align-items: center; gap: 5px;">
+                <i class="fa-solid fa-volume-high btn" id="muteBtn" title="Mute/Unmute"></i>
+                <input type="range" id="volumeBar" value="100" min="0" max="100" style="width: 100px; height: 4px;">
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <i class="fa-solid fa-closed-captioning btn" id="ccBtn" title="Closed Captions"></i>
+                <i class="fa-solid fa-repeat btn" id="loopBtn" title="Loop: Off"></i>
+                <i class="fa-solid fa-gauge-high btn" id="speedBtn" title="Playback Speed"></i>
+                <i class="fa-solid fa-maximize btn" id="fullscreenBtn" title="Fullscreen"></i>
+            </div>
+        </div>
+        
+        <div class="main-buttons">
+            <i class="fa-solid fa-rotate-left btn" id="rewindBtn" title="-10s"></i>
+            <i id="playBtn" class="fa-solid fa-circle-play btn play-btn-large"></i>
+            <i class="fa-solid fa-rotate-right btn" id="forwardBtn" title="+10s"></i>
+        </div>
+
+        <div class="progress-container">
+            <span class="time-display" id="currTime">0:00</span>
+            <input type="range" id="progressBar" class="progress-bar-modern" value="0" min="0" max="100" step="0.1">
+            <span class="time-display" id="durTime">0:00</span>
+        </div>
+    </div>
+</div>
+
+<script>
+    /* --- JS SETUP --- */
+    const card              = document.getElementById("card");
+    const videoWrapper      = document.getElementById("videoWrapper");
+    const fileInput         = document.getElementById("videoFile"); 
+    const videoPlayer       = document.getElementById("videoPlayer");
+    const playBtn           = document.getElementById("playBtn");
+    const progressBar       = document.getElementById("progressBar");
+    const currTimeEl        = document.getElementById("currTime");
+    const durTimeEl         = document.getElementById("durTime");
+    const muteBtn           = document.getElementById("muteBtn");
+    const volumeBar         = document.getElementById("volumeBar");
+    const fullscreenBtn     = document.getElementById("fullscreenBtn");
+    const rewindBtn         = document.getElementById("rewindBtn");
+    const forwardBtn        = document.getElementById("forwardBtn");
+    const speedBtn          = document.getElementById("speedBtn");
+    const controlsArea      = document.getElementById("controlsArea");
+    const bgAnim            = document.getElementById("bgAnim");
+    const ccBtn             = document.getElementById("ccBtn");
+    const ccOverlay         = document.getElementById("cc-overlay");
+    const loopBtn           = document.getElementById("loopBtn");
+    const bgVisualizer      = document.getElementById("bg-visualizer");
+    const visCtx            = bgVisualizer.getContext("2d");
+
+    // NEW ELEMENT REFERENCE
+    const headerArea        = document.getElementById("headerArea"); 
+
+    let isPlaying = false;
+    let isLooping = false;
+    let audioCtx, analyser, src;
+    let dataArray, bufferLength;
+    let controlsHideTimeout;
+    let audioIsSetup = false;
+    let headerHideTimeout; // NEW: Timeout for initial header hide
+    
+    // --- UTILITIES & Controls (Unchanged) ---
+    function fmtTime(s) {
+        if (isNaN(s)) return "0:00";
+        const m = Math.floor(s/60);
+        const sc = Math.floor(s%60);
+        return m + ":" + (sc<10?"0"+sc:sc);
+    }
+    
+    function resizeCanvas() {
+        bgVisualizer.width = bgVisualizer.clientWidth;
+        bgVisualizer.height = bgVisualizer.clientHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function showControls() {
+        // Show Bottom Controls
+        controlsArea.classList.remove('hide');
+        clearTimeout(controlsHideTimeout);
+        if (isPlaying) {
+            controlsHideTimeout = setTimeout(() => {
+                controlsArea.classList.add('hide');
+            }, 3000); 
+        }
+
+        // NEW: Show Header (Title/Load Video)
+        headerArea.classList.remove('hide');
+        clearTimeout(headerHideTimeout);
+        // Header only hides if a video is loaded AND playing
+        if (isPlaying && videoPlayer.src) { 
+            headerHideTimeout = setTimeout(() => {
+                headerArea.classList.add('hide');
+            }, 3000);
+        }
+    }
+
+    card.addEventListener('mousemove', showControls);
+    card.addEventListener('click', showControls); 
+    videoPlayer.addEventListener('pause', showControls);
+    videoPlayer.addEventListener('play', showControls);
+
+    fileInput.onchange = function(e) {
+        const file = e.target.files[0];
+        if(!file) return;
+        videoPlayer.src = URL.createObjectURL(file);
+        videoPlayer.load();
+        if(!audioIsSetup) setupAudioContext();
+        videoPlayer.muted = true;
+        playVideo();
+        setTimeout(() => videoPlayer.muted = false, 500); 
+        showControls();
+        // Force an immediate hide of the header 3 seconds after loading a video
+        clearTimeout(headerHideTimeout);
+        headerHideTimeout = setTimeout(() => {
+             headerArea.classList.add('hide');
+        }, 3000); 
+    };
+
+    function playVideo() {
+        if(!videoPlayer.src) return alert("Please Load a Video Track first.");
+        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+        videoPlayer.play().catch(e => console.error("Video Play Error:", e));
+        isPlaying = true;
+        playBtn.className = "fa-solid fa-circle-pause btn play-btn-large";
+        renderVisuals();
+        showControls();
+    }
+
+    function pauseVideo() {
+        videoPlayer.pause();
+        isPlaying = false;
+        playBtn.className = "fa-solid fa-circle-play btn play-btn-large";
+        clearTimeout(controlsHideTimeout);
+        clearTimeout(headerHideTimeout); // Clear header timeout on pause
+        showControls(); 
+    }
+
+    playBtn.onclick = () => { if(isPlaying) pauseVideo(); else playVideo(); };
+    videoPlayer.onclick = () => { if(isPlaying) pauseVideo(); else playVideo(); };
+
+    videoPlayer.ontimeupdate = () => {
+        if(videoPlayer.duration && !isNaN(videoPlayer.duration)) {
+            if (progressBar !== document.activeElement) { 
+                const pct = (videoPlayer.currentTime / videoPlayer.duration) * 100;
+                progressBar.value = pct;
+            }
+            currTimeEl.innerText = fmtTime(videoPlayer.currentTime);
+            durTimeEl.innerText = fmtTime(videoPlayer.duration);
+        }
+    };
+
+    progressBar.addEventListener('input', () => {
+        const time = (progressBar.value / 100) * videoPlayer.duration;
+        videoPlayer.currentTime = time;
+    });
+
+    loopBtn.onclick = () => {
+        isLooping = !isLooping;
+        videoPlayer.loop = isLooping;
+        loopBtn.style.color = isLooping ? '#ff00ff' : '#fff';
+        loopBtn.title = `Loop: ${isLooping ? 'On' : 'Off'}`;
+    };
+
+    videoPlayer.onended = () => {
+        if (!isLooping) {
+            isPlaying = false;
+            playBtn.className = "fa-solid fa-circle-play btn play-btn-large";
+            progressBar.value = 0;
+            showControls();
+        }
+    };
+
+    volumeBar.oninput = () => {
+        videoPlayer.volume = volumeBar.value / 100;
+        videoPlayer.muted = (volumeBar.value == 0);
+        muteBtn.className = videoPlayer.muted ? "fa-solid fa-volume-xmark btn" : "fa-solid fa-volume-high btn";
+    };
+    muteBtn.onclick = () => {
+        videoPlayer.muted = !videoPlayer.muted;
+        volumeBar.value = videoPlayer.muted ? 0 : videoPlayer.volume * 100;
+        muteBtn.className = videoPlayer.muted ? "fa-solid fa-volume-xmark btn" : "fa-solid fa-volume-high btn";
+    };
+    
+    rewindBtn.onclick = () => { videoPlayer.currentTime = Math.max(0, videoPlayer.currentTime - 10); };
+    forwardBtn.onclick = () => { videoPlayer.currentTime = Math.min(videoPlayer.duration, videoPlayer.currentTime + 10); };
+    let speedIndex = 1; 
+    const speeds = [0.5, 1.0, 1.5, 2.0];
+    speedBtn.onclick = () => {
+        speedIndex = (speedIndex + 1) % speeds.length;
+        videoPlayer.playbackRate = speeds[speedIndex];
+        speedBtn.title = `Speed: ${speeds[speedIndex]}x`;
+    };
+
+    let isCCToggled = false;
+    ccBtn.onclick = () => {
+        isCCToggled = !isCCToggled;
+        if (isCCToggled) {
+            ccBtn.style.color = '#00ffff';
+            ccOverlay.innerText = "Subtitles ON: OOIY X-TREME IS LIVE!"; 
+            ccOverlay.style.display = 'block';
+        } else {
+            ccBtn.style.color = '#fff';
+            ccOverlay.style.display = 'none';
+        }
+    };
+
+    fullscreenBtn.onclick = () => {
+        if (document.fullscreenElement) {
+            document.exitFullscreen();
+        } else {
+            document.documentElement.requestFullscreen();
+        }
+    };
+
+
+    // --- 3. AUDIO SYSTEM & DYNAMIC DISCO LOGIC (Bright Neon Glow) ---
+    function setupAudioContext() {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        src = audioCtx.createMediaElementSource(videoPlayer);
+        analyser = audioCtx.createAnalyser();
+        src.connect(analyser);
+        analyser.connect(audioCtx.destination);
+        
+        analyser.fftSize = 512;
+        bufferLength = analyser.frequencyBinCount;
+        dataArray = new Uint8Array(bufferLength);
+        audioIsSetup = true;
+    }
+
+    // UPDATED: Bright Neon Color Palette
+    const colorPalette = [
+    '#FF00FF','#FFFF00','#00FFFF','#FF0000','#00FF00','#0000FF','#FFA500',
+    '#FF1493','#ADFF2F','#40E0D0','#9400D3','#FF4500','#8A2BE2','#FFD700',
+    '#39FF14','#C300FF','#FF69B4','#00BFFF','#FF7F50','#7FFF00',
+
+    // ---- 100+ New Bright Colors ----
+    '#FF5F1F','#FF2E63','#08F7FE','#09FBD3','#FE53BB','#F5D300',
+    '#FF6EC7','#FF9A00','#FF2079','#00F0FF','#00FFA1','#D700FF',
+    '#FF00A0','#FF00C8','#FF4D00','#FF7300','#FF8E00','#FFB700',
+    '#FFEA00','#D4FF00','#A1FF0A','#57FF0A','#0AFF99','#0AFFEF',
+    '#0AD4FF','#0A7BFF','#0055FF','#2F00FF','#5A00FF','#8600FF',
+    '#AF00FF','#FF00F5','#FF00D4','#FF009D','#FF0074','#FF005C',
+    '#FF003C','#FF0018','#FF4800','#FF6A00','#FF9500','#FFC300',
+    '#FFF200','#E4FF00','#C3FF00','#91FF00','#4DFF00','#00FF85',
+    '#00FFC9','#00F7FF','#00ABFF','#005BFF','#1400FF','#3F00FF',
+    '#7200FF','#9D00FF','#C800FF','#F200FF','#FF00E6','#FF00C6',
+    '#FF00A6','#FF0088','#FF006F','#FF0051','#FF0033','#FF1B00',
+    '#FF4300','#FF6600','#FF8A00','#FFAD00','#FFD000','#FFF400',
+    '#D6FF00','#B0FF00','#89FF00','#5DFF00','#00FF72','#00FFB3',
+    '#00FFE5','#00D4FF','#0096FF','#0064FF','#2400FF','#5300FF',
+    '#8300FF','#B500FF','#E600FF','#FF00F2','#FF00D2','#FF00B3',
+    '#FF0094','#FF0075','#FF0056','#FF0038','#FF2200','#FF4A00',
+    '#FF7300','#FF9900','#FFBC00','#FFDF00','#FCFF00','#D1FF00',
+    '#AFFF00','#8DFF00','#66FF00','#00FF66','#00FFA8','#00FFEA',
+    '#00CCFF','#008CFF','#0050FF','#3500FF','#6500FF','#9400FF',
+    '#C400FF','#F400FF'
+    ];
+
+    
+    let colorIndex = 0;
+    let lastBeatTime = 0;
+
+    // Parameters for dynamic beat sensitivity (0.01s to 1.5s range)
+    const BASS_THRESHOLD_MIN = 120;
+    const BASS_THRESHOLD_MAX = 200;
+    const INTERVAL_MAX = 1500;
+    const INTERVAL_MIN = 10;
+
+    // NEW FUNCTION: Consolidates the color application logic for all three elements
+    function applyDiscoEffects(newColor) {
+        // EFFECT A: DYNAMIC DISCO BORDER COLOR CHANGE
+        card.style.borderColor = newColor; 
+        
+        // EFFECT B: BRIGHTER NEON GLOW - Applies the INSET glow over the video
+        // Changed blur radius from 50px to 70px for a brighter glow effect
+        videoWrapper.style.boxShadow = `inset 0 0 70px -10px ${newColor}`;
+        
+        // EFFECT C: BACKGROUND COLOR FLASH
+        bgAnim.style.background = `radial-gradient(circle at 50% 50%, ${newColor} 0%, #000000 100%)`;
+    }
+
+    function renderVisuals() {
+        if(!isPlaying || !audioIsSetup) return;
+        requestAnimationFrame(renderVisuals);
+        
+        analyser.getByteFrequencyData(dataArray);
+        
+        const w = bgVisualizer.width;
+        const h = bgVisualizer.height;
+        const center = { x: w / 2, y: h / 2 };
+
+        // 1. BEAT DETECTION (Bass Frequencies)
+        let bass = 0;
+        for(let i=0; i<15; i++) bass += dataArray[i]; 
+        bass = bass / 15; 
+        
+        const currentTime = Date.now();
+
+        // 2. DYNAMIC INTERVAL CALCULATION 
+        let normalizedBass = (bass - BASS_THRESHOLD_MIN) / (BASS_THRESHOLD_MAX - BASS_THRESHOLD_MIN);
+        normalizedBass = Math.max(0, Math.min(1, normalizedBass));
+
+        const dynamicInterval = INTERVAL_MAX - (normalizedBass * (INTERVAL_MAX - INTERVAL_MIN));
+
+        // 3. APPLY EFFECTS: BORDER COLOR CHANGE AND BRIGHT NEON GLOW
+        if(currentTime - lastBeatTime > dynamicInterval) {
+            lastBeatTime = currentTime;
+            
+            colorIndex = (colorIndex + 1) % colorPalette.length;
+            const newColor = colorPalette[colorIndex];
+            
+            // Apply all effects with the new bright color
+            applyDiscoEffects(newColor);
+        } 
+        
+        // Visualizer Drawing: Radial Energy Pulse
+        visCtx.clearRect(0, 0, w, h);
+        const radius = Math.max(w, h) * 0.15;
+        
+        for (let i = 0; i < bufferLength; i += 4) {
+            const bar = dataArray[i];
+            const hue = (i * 2 + Date.now() * 0.02) % 360;
+
+            visCtx.beginPath();
+            visCtx.arc(center.x, center.y, radius + i * 0.4 + bar*0.2, 0, Math.PI * 2);
+            visCtx.fillStyle = `hsla(${hue}, 100%, 70%, 0.05)`;
+            visCtx.fill();
+        }
+
+        // ADVANCED EFFECT: Global Volume Rotation/Scaling (BG only)
+        let sum = 0;
+        for(let i=0; i<bufferLength; i++) sum += dataArray[i];
+        const avgVolume = sum / bufferLength;
+        const volumeScale = 1 + (avgVolume / 255) * 0.03;
+        bgAnim.style.transform = `scale(${volumeScale})`;
+    }
+
+    // INITIALIZATION: Apply initial color/glow on load and hide controls
+    document.addEventListener('DOMContentLoaded', () => { 
+        controlsArea.classList.add('hide'); 
+        // Ensures the full bright glow and border are visible immediately
+        applyDiscoEffects(colorPalette[colorIndex]);
+
+        // NEW LOGIC: Hide the header (Logo & Load Video button) after 3 seconds
+        setTimeout(() => {
+            headerArea.classList.add('hide');
+        }, 3000); // 3000 milliseconds = 3 seconds
+    });
+
+</script>
+
+</body>
+</html>
