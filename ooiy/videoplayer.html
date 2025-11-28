@@ -71,13 +71,14 @@
         pointer-events: none;
     }
     .logo { font-size: 20px; font-weight: bold; color: #00ffff; }
+    .upload-group { display: flex; gap: 10px; } /* Grouping upload buttons */
     .upload-btn {
         padding: 8px 15px; background: rgba(0,0,0,0.5); border: 2px solid #ff00ff;
         border-radius: 5px; cursor: pointer; font-size: 14px;
         transition: 0.2s;
     }
     .upload-btn:hover { background: #ff00ff; color: #000; }
-    #videoFile { display: none; }
+    #videoFile, #subtitleFile { display: none; } /* Hide file inputs */
 
     .video-wrapper {
         position: relative;
@@ -161,6 +162,23 @@
         opacity: 0.8;
     }
     .btn:hover { opacity: 1; color: #ff00ff; transform: scale(1.1); text-shadow: 0 0 15px #ff00ff;}
+
+    /* New Beat Button Style */
+    #beatBtn {
+        font-size: 26px; /* Match utility buttons */
+        color: #ff00ff; /* Use primary neon color */
+        padding: 5px 10px;
+        border: 2px solid #ff00ff;
+        border-radius: 5px;
+        transition: 0.1s;
+    }
+    #beatBtn:hover {
+        opacity: 1;
+        color: #fff;
+        background-color: #ff00ff;
+        box-shadow: 0 0 10px #ff00ff;
+        transform: scale(1.05);
+    }
     
     .play-btn-large {
         font-size: 70px; opacity: 1;
@@ -170,11 +188,29 @@
     }
     .play-btn-large:hover { transform: scale(1.05); filter: drop-shadow(0 0 25px #00ffff); }
     
+    /* --- CC OVERLAY (VLC Style) --- */
     #cc-overlay {
-        position: absolute; bottom: 10%; left: 50%; transform: translateX(-50%);
-        text-align: center; padding: 5px 10px; background: rgba(0, 0, 0, 0.7);
-        color: white; font-size: 24px; font-weight: bold; text-shadow: 2px 2px 4px #000;
-        border-radius: 5px; max-width: 80%; display: none; pointer-events: none; z-index: 40;
+        position: absolute; 
+        bottom: 10%; /* Place higher above controls */
+        left: 50%; 
+        transform: translateX(-50%);
+        text-align: center; 
+        padding: 5px 10px; 
+        
+        /* VLC STYLE */
+        background: rgba(0, 0, 0, 0.5); /* Semi-transparent background box */
+        color: white; 
+        font-size: 32px; /* Larger font size */
+        font-weight: 800; /* Bolder text */
+        
+        /* Black outline/shadow for readability */
+        text-shadow: 2px 2px 4px #000, -2px -2px 4px #000, 2px -2px 4px #000, -2px 2px 4px #000;
+        
+        border-radius: 5px; 
+        max-width: 90%; 
+        display: none; 
+        pointer-events: none; 
+        z-index: 40;
     }
 </style>
 </head>
@@ -186,15 +222,25 @@
 </div>
 
 <div class="player-card" id="card">
-    <div class="header" id="headerArea"> <div class="logo">OOIY X-TREME 5.1</div>
-        <label class="upload-btn" for="videoFile">
-            <i class="fa-solid fa-film"></i> LOAD VIDEO
-        </label>
-        <input type="file" type="file" id="videoFile" accept="video/*">
+    <div class="header" id="headerArea"> 
+        <div class="logo">OOIY X-TREME 5.1</div>
+        <div class="upload-group">
+            <label class="upload-btn" for="subtitleFile">
+                <i class="fa-solid fa-closed-captioning"></i> LOAD SUBTITLES
+            </label>
+            <label class="upload-btn" for="videoFile">
+                <i class="fa-solid fa-film"></i> LOAD VIDEO
+            </label>
+        </div>
+        <input type="file" id="videoFile" accept="video/*">
+        <input type="file" id="subtitleFile" accept=".srt, .vtt">
+        
     </div>
-
+    
     <div class="video-wrapper" id="videoWrapper">
-        <video id="videoPlayer" preload="metadata" playsinline></video>
+        <video id="videoPlayer" preload="metadata" playsinline>
+             <track id="manualTrack" kind="subtitles" srclang="en" label="OOIY Subtitles" default> 
+        </video>
         <div id="cc-overlay"></div> 
     </div>
 
@@ -203,6 +249,7 @@
             <div style="display: flex; align-items: center; gap: 5px;">
                 <i class="fa-solid fa-volume-high btn" id="muteBtn" title="Mute/Unmute"></i>
                 <input type="range" id="volumeBar" value="100" min="0" max="100" style="width: 100px; height: 4px;">
+                <i class="fa-solid fa-heart-pulse btn" id="beatBtn" title="Trigger Beat Color"> BEAT</i>
             </div>
 
             <div style="display: flex; align-items: center; gap: 15px;">
@@ -214,9 +261,12 @@
         </div>
         
         <div class="main-buttons">
+            <button id="zoomOutBtn" title="Zoom Out"><i class="fa-solid fa-minus"></i></button>
             <i class="fa-solid fa-rotate-left btn" id="rewindBtn" title="-10s"></i>
             <i id="playBtn" class="fa-solid fa-circle-play btn play-btn-large"></i>
             <i class="fa-solid fa-rotate-right btn" id="forwardBtn" title="+10s"></i>
+            <button id="zoomInBtn" title="Zoom In"><i class="fa-solid fa-plus"></i></button>
+
         </div>
 
         <div class="progress-container">
@@ -232,6 +282,7 @@
     const card              = document.getElementById("card");
     const videoWrapper      = document.getElementById("videoWrapper");
     const fileInput         = document.getElementById("videoFile"); 
+    const subtitleInput     = document.getElementById("subtitleFile"); 
     const videoPlayer       = document.getElementById("videoPlayer");
     const playBtn           = document.getElementById("playBtn");
     const progressBar       = document.getElementById("progressBar");
@@ -250,19 +301,32 @@
     const loopBtn           = document.getElementById("loopBtn");
     const bgVisualizer      = document.getElementById("bg-visualizer");
     const visCtx            = bgVisualizer.getContext("2d");
-
-    // NEW ELEMENT REFERENCE
     const headerArea        = document.getElementById("headerArea"); 
+    const manualTrack       = document.getElementById("manualTrack");
+    const beatBtn           = document.getElementById("beatBtn"); 
 
+    // NEW: Zoom controls - assuming you will add buttons with these IDs
+    const zoomInBtn         = document.getElementById("zoomInBtn");
+    const zoomOutBtn        = document.getElementById("zoomOutBtn");
+    
     let isPlaying = false;
     let isLooping = false;
     let audioCtx, analyser, src;
     let dataArray, bufferLength;
     let controlsHideTimeout;
     let audioIsSetup = false;
-    let headerHideTimeout; // NEW: Timeout for initial header hide
+    let headerHideTimeout; 
+    let cueListeners = []; 
+    let isBeatOn = false; // Beat/Shake feature state
     
-    // --- UTILITIES & Controls (Unchanged) ---
+    // NEW STATE: Video Zoom
+    let currentZoom = 1.0;
+    const ZOOM_STEP = 0.2;
+    const MAX_ZOOM = 3.0;
+    const MIN_ZOOM = 1.0;
+
+    
+    // --- UTILITIES & Controls ---
     function fmtTime(s) {
         if (isNaN(s)) return "0:00";
         const m = Math.floor(s/60);
@@ -287,10 +351,9 @@
             }, 3000); 
         }
 
-        // NEW: Show Header (Title/Load Video)
+        // Show Header (Title/Load Video)
         headerArea.classList.remove('hide');
         clearTimeout(headerHideTimeout);
-        // Header only hides if a video is loaded AND playing
         if (isPlaying && videoPlayer.src) { 
             headerHideTimeout = setTimeout(() => {
                 headerArea.classList.add('hide');
@@ -298,10 +361,32 @@
         }
     }
 
+    // Controls will show on mouse movement
     card.addEventListener('mousemove', showControls);
-    card.addEventListener('click', showControls); 
     videoPlayer.addEventListener('pause', showControls);
     videoPlayer.addEventListener('play', showControls);
+
+    // --- NEW: Toggle UI visibility on click/touch ---
+    videoPlayer.onclick = () => {
+        if (!videoPlayer.src) return; 
+
+        if (isPlaying) {
+            // If playing, pause and show controls, OR hide controls if they're visible
+            if (!controlsArea.classList.contains('hide')) {
+                controlsArea.classList.add('hide');
+                headerArea.classList.add('hide');
+                clearTimeout(controlsHideTimeout);
+                clearTimeout(headerHideTimeout);
+            } else {
+                pauseVideo();
+            }
+        } else {
+            playVideo();
+        }
+    };
+    // The play button still toggles play/pause with control show/hide
+    playBtn.onclick = () => { if(isPlaying) pauseVideo(); else playVideo(); };
+
 
     fileInput.onchange = function(e) {
         const file = e.target.files[0];
@@ -309,16 +394,166 @@
         videoPlayer.src = URL.createObjectURL(file);
         videoPlayer.load();
         if(!audioIsSetup) setupAudioContext();
-        videoPlayer.muted = true;
+
+        // 1. Clear any previous subtitle state/listeners
+        manualTrack.mode = 'disabled';
+        ccOverlay.innerText = "";
+        ccOverlay.style.display = 'none';
+        
         playVideo();
         setTimeout(() => videoPlayer.muted = false, 500); 
         showControls();
-        // Force an immediate hide of the header 3 seconds after loading a video
-        clearTimeout(headerHideTimeout);
-        headerHideTimeout = setTimeout(() => {
-             headerArea.classList.add('hide');
-        }, 3000); 
     };
+
+
+    /* -----------------------------------------------------
+       --- NEW: Subtitle SRT/VTT Loading Logic ---
+       ----------------------------------------------------- */
+
+    // Helper function to convert SRT to VTT format
+    function srtToVtt(data) {
+        // Remove unnecessary formatting and replace comma with dot for milliseconds
+        data = data.replace(/\{\\.*\}/g, '').trim();
+        data = data.replace(/,/g, '.');
+
+        // Replace SRT time format (00:00:00.000) with VTT time format (00:00:00.000) and arrows (-->)
+        // SRT lines usually look like: 00:00:02.000 --> 00:00:05.000
+        // VTT lines look like: 00:00:02.000 --> 00:00:05.000
+        // The main structural difference is the lack of the "cue number" in VTT and the "WEBVTT" header
+        
+        // Remove cue number lines (lines consisting only of digits)
+        const lines = data.split('\n');
+        const filteredLines = lines.filter(line => !/^\d+$/.test(line.trim()));
+        
+        // Join lines back and add WEBVTT header
+        let vtt = 'WEBVTT\n\n' + filteredLines.join('\n');
+        
+        // Clean up any double empty lines that might result from removal
+        vtt = vtt.replace(/\n\s*\n\n/g, '\n\n'); 
+        
+        return vtt;
+    }
+
+
+    subtitleInput.onchange = function(e) {
+        const file = e.target.files[0];
+        if(!file) return;
+
+        // 1. Read file content
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            let fileContent = event.target.result;
+            const fileName = file.name.toLowerCase();
+
+            // 2. Check file extension and convert if necessary
+            if (fileName.endsWith('.srt')) {
+                fileContent = srtToVtt(fileContent);
+                console.log("SRT file converted to VTT format.");
+            } else if (!fileName.endsWith('.vtt')) {
+                alert("Unsupported subtitle file type. Please use .srt or .vtt.");
+                return;
+            }
+
+            // 3. Create a Blob from the processed VTT content
+            const vttBlob = new Blob([fileContent], { type: 'text/vtt' });
+            const vttUrl = URL.createObjectURL(vttBlob);
+
+            // 4. Clean up and set new track
+            if (manualTrack.src) URL.revokeObjectURL(manualTrack.src);
+
+            while (videoPlayer.querySelector('track[label="Uploaded Subtitles"]')) {
+                videoPlayer.querySelector('track[label="Uploaded Subtitles"]').remove();
+            }
+
+            const track = document.createElement('track');
+            track.kind = 'subtitles';
+            track.srclang = 'en';
+            track.label = 'Uploaded Subtitles';
+            track.src = vttUrl;
+            videoPlayer.appendChild(track);
+            
+            manualTrack.mode = 'disabled';
+            ccOverlay.style.display = 'none';
+            ccBtn.style.color = '#fff'; 
+
+            track.addEventListener('load', () => {
+                console.log("Subtitle track loaded.");
+                track.mode = 'showing'; 
+                ccBtn.style.color = '#00ffff'; 
+                isCCToggled = true; 
+                setupVlcStyleCueHandling(track); 
+            });
+        };
+        reader.readAsText(file); // Read the file as text
+    };
+
+
+    function setupVlcStyleCueHandling(trackElement) {
+        const textTrack = trackElement.track;
+        
+        cueListeners.forEach(listener => textTrack.removeEventListener('cuechange', listener));
+        cueListeners = []; 
+
+        textTrack.mode = 'hidden';
+
+        const cueChangeListener = () => {
+            if (!isCCToggled) return; 
+
+            if (textTrack.activeCues.length > 0) {
+                const cue = textTrack.activeCues[0];
+                ccOverlay.innerText = cue.text;
+                ccOverlay.style.display = 'block';
+            } else {
+                ccOverlay.innerText = "";
+                ccOverlay.style.display = 'none';
+            }
+        };
+
+        textTrack.addEventListener('cuechange', cueChangeListener);
+        cueListeners.push(cueChangeListener);
+    }
+    // --- END Subtitle Logic ---
+
+
+    /* -----------------------------------------------------
+       --- NEW: Video Zoom Logic ---
+       ----------------------------------------------------- */
+
+    function updateZoom() {
+        // Apply the zoom transformation to the video wrapper
+        videoWrapper.style.transform = `scale(${currentZoom})`;
+
+        // Re-adjust the background visualizer to fit the (now scaled) videoWrapper area
+        // Note: This is a simplified approach, a true zoom requires more complex handling 
+        // of the parent container's overflow and position.
+        
+        // Reset shake transform if applied by beat
+        if (!isBeatOn) {
+            videoWrapper.style.transform = `scale(${currentZoom})`;
+        } else {
+            // If beat is on, ensure we maintain the zoom level and allow shake to overlay
+            // This is handled better in the shakeVideo function, but ensures the base scale is right.
+        }
+    }
+
+    if (zoomInBtn) {
+        zoomInBtn.onclick = () => {
+            currentZoom = Math.min(MAX_ZOOM, currentZoom + ZOOM_STEP);
+            updateZoom();
+        };
+    }
+
+    if (zoomOutBtn) {
+        zoomOutBtn.onclick = () => {
+            currentZoom = Math.max(MIN_ZOOM, currentZoom - ZOOM_STEP);
+            updateZoom();
+        };
+    }
+
+
+    /* -----------------------------------------------------
+       --- EXISTING CONTROLS/FEATURES ---
+       ----------------------------------------------------- */
 
     function playVideo() {
         if(!videoPlayer.src) return alert("Please Load a Video Track first.");
@@ -335,12 +570,9 @@
         isPlaying = false;
         playBtn.className = "fa-solid fa-circle-play btn play-btn-large";
         clearTimeout(controlsHideTimeout);
-        clearTimeout(headerHideTimeout); // Clear header timeout on pause
+        clearTimeout(headerHideTimeout); 
         showControls(); 
     }
-
-    playBtn.onclick = () => { if(isPlaying) pauseVideo(); else playVideo(); };
-    videoPlayer.onclick = () => { if(isPlaying) pauseVideo(); else playVideo(); };
 
     videoPlayer.ontimeupdate = () => {
         if(videoPlayer.duration && !isNaN(videoPlayer.duration)) {
@@ -365,48 +597,34 @@
         loopBtn.title = `Loop: ${isLooping ? 'On' : 'Off'}`;
     };
 
-    videoPlayer.onended = () => {
-        if (!isLooping) {
-            isPlaying = false;
-            playBtn.className = "fa-solid fa-circle-play btn play-btn-large";
-            progressBar.value = 0;
-            showControls();
-        }
-    };
 
-    volumeBar.oninput = () => {
-        videoPlayer.volume = volumeBar.value / 100;
-        videoPlayer.muted = (volumeBar.value == 0);
-        muteBtn.className = videoPlayer.muted ? "fa-solid fa-volume-xmark btn" : "fa-solid fa-volume-high btn";
-    };
-    muteBtn.onclick = () => {
-        videoPlayer.muted = !videoPlayer.muted;
-        volumeBar.value = videoPlayer.muted ? 0 : videoPlayer.volume * 100;
-        muteBtn.className = videoPlayer.muted ? "fa-solid fa-volume-xmark btn" : "fa-solid fa-volume-high btn";
-    };
-    
-    rewindBtn.onclick = () => { videoPlayer.currentTime = Math.max(0, videoPlayer.currentTime - 10); };
-    forwardBtn.onclick = () => { videoPlayer.currentTime = Math.min(videoPlayer.duration, videoPlayer.currentTime + 10); };
-    let speedIndex = 1; 
-    const speeds = [0.5, 1.0, 1.5, 2.0];
-    speedBtn.onclick = () => {
-        speedIndex = (speedIndex + 1) % speeds.length;
-        videoPlayer.playbackRate = speeds[speedIndex];
-        speedBtn.title = `Speed: ${speeds[speedIndex]}x`;
-    };
-
+    // CC Button now toggles the custom VTT handling ON/OFF
     let isCCToggled = false;
     ccBtn.onclick = () => {
         isCCToggled = !isCCToggled;
-        if (isCCToggled) {
-            ccBtn.style.color = '#00ffff';
-            ccOverlay.innerText = "Subtitles ON: OOIY X-TREME IS LIVE!"; 
-            ccOverlay.style.display = 'block';
+        const trackElement = videoPlayer.querySelector('track[label="Uploaded Subtitles"]');
+        
+        if (trackElement) {
+            if (isCCToggled) {
+                ccBtn.style.color = '#00ffff';
+                trackElement.track.mode = 'hidden'; 
+            } else {
+                ccBtn.style.color = '#fff';
+                ccOverlay.style.display = 'none';
+                ccOverlay.innerText = "";
+            }
         } else {
-            ccBtn.style.color = '#fff';
-            ccOverlay.style.display = 'none';
+             ccBtn.style.color = isCCToggled ? '#00ffff' : '#fff';
+             if (isCCToggled) {
+                 ccOverlay.innerText = "CC ON: Please load an SRT or VTT subtitle file.";
+                 ccOverlay.style.display = 'block';
+             } else {
+                 ccOverlay.style.display = 'none';
+                 ccOverlay.innerText = "";
+             }
         }
     };
+    
 
     fullscreenBtn.onclick = () => {
         if (document.fullscreenElement) {
@@ -417,7 +635,7 @@
     };
 
 
-    // --- 3. AUDIO SYSTEM & DYNAMIC DISCO LOGIC (Bright Neon Glow) ---
+    // --- AUDIO SYSTEM & DYNAMIC EFFECTS ---
     function setupAudioContext() {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         src = audioCtx.createMediaElementSource(videoPlayer);
@@ -431,13 +649,10 @@
         audioIsSetup = true;
     }
 
-    // UPDATED: Bright Neon Color Palette
     const colorPalette = [
     '#FF00FF','#FFFF00','#00FFFF','#FF0000','#00FF00','#0000FF','#FFA500',
     '#FF1493','#ADFF2F','#40E0D0','#9400D3','#FF4500','#8A2BE2','#FFD700',
     '#39FF14','#C300FF','#FF69B4','#00BFFF','#FF7F50','#7FFF00',
-
-    // ---- 100+ New Bright Colors ----
     '#FF5F1F','#FF2E63','#08F7FE','#09FBD3','#FE53BB','#F5D300',
     '#FF6EC7','#FF9A00','#FF2079','#00F0FF','#00FFA1','#D700FF',
     '#FF00A0','#FF00C8','#FF4D00','#FF7300','#FF8E00','#FFB700',
@@ -463,23 +678,103 @@
     
     let colorIndex = 0;
     let lastBeatTime = 0;
-
-    // Parameters for dynamic beat sensitivity (0.01s to 1.5s range)
     const BASS_THRESHOLD_MIN = 120;
     const BASS_THRESHOLD_MAX = 200;
     const INTERVAL_MAX = 1500;
     const INTERVAL_MIN = 10;
+    const SHAKE_AMOUNT = 5; 
 
-    // NEW FUNCTION: Consolidates the color application logic for all three elements
+    function triggerNeonFlash() {
+        const flashColor = '#FFFFFF';
+        card.style.transition = 'box-shadow 0.01s ease, background-color 0.01s ease';
+        card.style.backgroundColor = flashColor;
+        card.style.boxShadow = `0 0 100px 50px ${flashColor}, inset 0 0 100px 50px ${flashColor}`;
+        card.style.filter = 'brightness(1.5)';
+        
+        setTimeout(() => {
+            card.style.transition = 'border-color 0.05s ease, box-shadow 0.05s ease, background-color 0.5s ease';
+            card.style.backgroundColor = 'rgba(0, 0, 0, 0)'; 
+            card.style.boxShadow = 'none'; 
+            card.style.filter = 'none'; 
+        }, 50); 
+    }
+
+    function triggerBeat() {
+        colorIndex = (colorIndex + 1) % colorPalette.length;
+        const newColor = colorPalette[colorIndex];
+        applyDiscoEffects(newColor);
+        lastBeatTime = Date.now();
+
+        if (isBeatOn) {
+             shakeVideo();
+             if (Math.random() < 0.1) { 
+                triggerNeonFlash();
+             }
+        }
+    }
+
+    function shakeVideo() {
+        const xOffset = Math.random() * SHAKE_AMOUNT * 2 - SHAKE_AMOUNT; 
+        const yOffset = Math.random() * SHAKE_AMOUNT * 2 - SHAKE_AMOUNT; 
+
+        // Apply shake transform to the video wrapper, maintaining current zoom
+        videoWrapper.style.transform = `translate(${xOffset}px, ${yOffset}px) scale(${currentZoom * 1.01})`;
+        
+        setTimeout(() => {
+            // Reset position, but keep the current zoom level
+            videoWrapper.style.transform = `translate(0, 0) scale(${currentZoom})`;
+        }, 80); 
+    }
+    
+    beatBtn.onclick = function() {
+        if (!videoPlayer.src) return alert("Please Load a Video Track first.");
+        
+        isBeatOn = !isBeatOn;
+
+        if (isBeatOn) {
+            beatBtn.style.backgroundColor = '#ff00ff'; 
+            beatBtn.style.color = '#000';
+            beatBtn.innerText = 'BEAT ON';
+
+            const pulseCount = 8; 
+            const intervalMs = 50; 
+            let count = 0;
+
+            const pulse = setInterval(() => {
+                triggerBeat(); 
+                bgAnim.style.transform = `scale(1.05)`; 
+                
+                count++;
+                if (count >= pulseCount) {
+                    clearInterval(pulse);
+                    
+                    setTimeout(() => {
+                        if (isPlaying && audioIsSetup) {
+                            let sum = 0;
+                            for(let i=0; i<bufferLength; i++) sum += dataArray[i];
+                            const avgVolume = sum / bufferLength;
+                            const volumeScale = 1 + (avgVolume / 255) * 0.03;
+                            bgAnim.style.transform = `scale(${volumeScale})`;
+                        } else {
+                            bgAnim.style.transform = `scale(1)`;
+                        }
+                    }, intervalMs); 
+                }
+            }, intervalMs);
+
+        } else {
+            beatBtn.style.backgroundColor = 'rgba(0,0,0,0.5)'; 
+            beatBtn.style.color = '#ff00ff'; 
+            beatBtn.innerText = 'BEAT';
+            
+            // Ensure video wrapper is reset to current zoom level (no shake/transform)
+            videoWrapper.style.transform = `translate(0, 0) scale(${currentZoom})`;
+        }
+    };
+
     function applyDiscoEffects(newColor) {
-        // EFFECT A: DYNAMIC DISCO BORDER COLOR CHANGE
         card.style.borderColor = newColor; 
-        
-        // EFFECT B: BRIGHTER NEON GLOW - Applies the INSET glow over the video
-        // Changed blur radius from 50px to 70px for a brighter glow effect
         videoWrapper.style.boxShadow = `inset 0 0 70px -10px ${newColor}`;
-        
-        // EFFECT C: BACKGROUND COLOR FLASH
         bgAnim.style.background = `radial-gradient(circle at 50% 50%, ${newColor} 0%, #000000 100%)`;
     }
 
@@ -493,31 +788,21 @@
         const h = bgVisualizer.height;
         const center = { x: w / 2, y: h / 2 };
 
-        // 1. BEAT DETECTION (Bass Frequencies)
         let bass = 0;
         for(let i=0; i<15; i++) bass += dataArray[i]; 
         bass = bass / 15; 
         
         const currentTime = Date.now();
 
-        // 2. DYNAMIC INTERVAL CALCULATION 
         let normalizedBass = (bass - BASS_THRESHOLD_MIN) / (BASS_THRESHOLD_MAX - BASS_THRESHOLD_MIN);
         normalizedBass = Math.max(0, Math.min(1, normalizedBass));
 
         const dynamicInterval = INTERVAL_MAX - (normalizedBass * (INTERVAL_MAX - INTERVAL_MIN));
 
-        // 3. APPLY EFFECTS: BORDER COLOR CHANGE AND BRIGHT NEON GLOW
         if(currentTime - lastBeatTime > dynamicInterval) {
-            lastBeatTime = currentTime;
-            
-            colorIndex = (colorIndex + 1) % colorPalette.length;
-            const newColor = colorPalette[colorIndex];
-            
-            // Apply all effects with the new bright color
-            applyDiscoEffects(newColor);
+            triggerBeat();
         } 
         
-        // Visualizer Drawing: Radial Energy Pulse
         visCtx.clearRect(0, 0, w, h);
         const radius = Math.max(w, h) * 0.15;
         
@@ -531,7 +816,6 @@
             visCtx.fill();
         }
 
-        // ADVANCED EFFECT: Global Volume Rotation/Scaling (BG only)
         let sum = 0;
         for(let i=0; i<bufferLength; i++) sum += dataArray[i];
         const avgVolume = sum / bufferLength;
@@ -539,16 +823,14 @@
         bgAnim.style.transform = `scale(${volumeScale})`;
     }
 
-    // INITIALIZATION: Apply initial color/glow on load and hide controls
+    // INITIALIZATION
     document.addEventListener('DOMContentLoaded', () => { 
         controlsArea.classList.add('hide'); 
-        // Ensures the full bright glow and border are visible immediately
         applyDiscoEffects(colorPalette[colorIndex]);
 
-        // NEW LOGIC: Hide the header (Logo & Load Video button) after 3 seconds
         setTimeout(() => {
             headerArea.classList.add('hide');
-        }, 3000); // 3000 milliseconds = 3 seconds
+        }, 3000); 
     });
 
 </script>
