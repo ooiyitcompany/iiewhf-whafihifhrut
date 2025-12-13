@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OOIY HYPER-BEAT PLAYER (Waveform Ver.)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+
+<style>
+    /* ---------------------------------------------------------------------- */
+    /* --- 1. CORE & BACKGROUND --- */
+    /* ---------------------------------------------------------------------- */
+    * { 
+        box-sizing: border-box; 
+        outline: none; 
+        user-select: none; 
+    }
+    
+    body {
+        margin: 0;
+        background-color: #000;
+        font-family: 'Segoe UI', sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        overflow: hidden;
+        color: #fff;
+    }
+
+    /* Deep Space Background (STAYS OUTSIDE) */
+    .bg-anim {
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: radial-gradient(circle at 50% 50%, #0f001f 0%, #000000 90%);
+        z-index: -2;
+    }
+
+    /* ---------------------------------------------------------------------- */
+    /* --- 2. PRE-LOAD MENU (CYAN Focus) --- */
+    /* ---------------------------------------------------------------------- */
+    #preLoadMenu {
+        position: absolute;
+        width: 90%;
+        max-width: 450px;
+        padding: 40px;
+        background: rgba(0, 0, 0, 0.9);
+        backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px);
+        border-radius: 20px;
+        border: 2px solid #00ffff; /* CYAN BORDER */
+        text-align: center;
+        z-index: 100;
+        display: flex;
+        flex-direction: column;
+        gap: 30px;
+        transition: opacity 0.5s;
+    }
+    .menu-header {
+        font-size: 26px; font-weight: 900; color: #00ffff;
+        text-shadow: 0 0 10px #00ffff;
+    }
+    .upload-grid {
+        display: grid; grid-template-columns: 1fr; gap: 15px;
+    }
+    .menu-upload-btn {
+        display: block; width: 100%;
+        background: rgba(0, 255, 255, 0.1); border: 2px solid #00ffff;
+        border-radius: 10px; padding: 15px 20px;
+        font-size: 14px; font-weight: 800; color: #fff;
+        cursor: pointer; text-transform: uppercase; transition: 0.2s;
+    }
+    .menu-upload-btn:hover { background: #00ffff; color: #000; box-shadow: 0 0 20px #00ffff; }
+    .menu-upload-btn.loaded { background: #ff00ff; border-color: #ff00ff; color: #fff; } /* MAGENTA loaded state */
+    
+    #startPlayerBtn {
+        background: #ff00ff; border: 2px solid #ff00ff; padding: 20px;
+        font-size: 18px; font-weight: 900; border-radius: 15px; cursor: pointer;
+        opacity: 0.5; pointer-events: none; transition: 0.3s;
+    }
+    #startPlayerBtn.ready { 
+        opacity: 1; pointer-events: auto; 
+        box-shadow: 0 0 30px rgba(255,0,255,0.7);
+    }
+    #startPlayerBtn.ready:hover { background: #fff; color: #ff00ff; }
+
+    /* ---------------------------------------------------------------------- */
+    /* --- 3. THE PLAYER CARD (The 0.1s Strobe) --- */
+    /* ---------------------------------------------------------------------- */
+    .player-card {
+        position: relative;
+        width: 90%; max-width: 450px; height: 600px;
+        
+        overflow: hidden; 
+        
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(30px);
+        -webkit-backdrop-filter: blur(30px);
+        border-radius: 35px;
+        
+        display: flex; flex-direction: column; align-items: center;
+        justify-content: space-between; padding: 30px; z-index: 10;
+        
+        /* BORDER STROBE: 0.1s Speed */
+        border: 20px solid #fff;
+        box-shadow: 0 0 40px rgba(0,0,0,0.8);
+        animation: hyperStrobe 0.1s steps(4) infinite; 
+        transition: transform 0.3s ease, opacity 0.3s ease;
+        
+        /* Initially hidden for pre-load menu */
+        opacity: 0;
+        transform: scale(0.9);
+        pointer-events: none;
+    }
+    .player-card.active {
+        opacity: 1;
+        transform: scale(1);
+        pointer-events: auto;
+    }
+
+    /* --- BG Media INSIDE Card --- */
+    #bgMediaContainer {
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        z-index: -3; 
+        overflow: hidden;
+    }
+    #bgMediaContainer img, #bgMediaContainer video {
+        width: 100%; height: 100%;
+        object-fit: cover;
+        opacity: 0.6; 
+    }
+
+     @keyframes hyperStrobe {
+    0%   { border-color: #ff0000; box-shadow: 0 0 40px #ff0000; } /* Red */
+    12.5%   { border-color: #ff8c00; box-shadow: 0 0 40px #ff8c00; } /* Orange */
+    25%     { border-color: #ffff00; box-shadow: 0 0 40px #ffff00; } /* Yellow */
+    37.5% { border-color: #00ff00; box-shadow: 0 0 40px #00ff00; } /* Green */
+    50%     { border-color: #00ffff; box-shadow: 0 0 40px #00ffff; } /* Cyan */
+    62.5% { border-color: #0000ff; box-shadow: 0 0 40px #0000ff; } /* Blue */
+    75%     { border-color: #8a2be2; box-shadow: 0 0 40px #8a2be2; } /* Blue Violet (Purple) */
+    87.5% { border-color: #ff00ff; box-shadow: 0 0 40px #ff00ff; } /* Magenta */
+    100% { border-color: #ff0000; box-shadow: 0 0 40px #ff0000; } /* Red (loops back) */
+  }
+    
+    /* ---------------------------------------------------------------------- */
+    /* --- 4. VISUALIZER CANVAS --- */
+    /* ---------------------------------------------------------------------- */
+    canvas {
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        border-radius: 30px;
+        z-index: -1; 
+        opacity: 1;
+        mix-blend-mode: screen; 
+    }
+
+    /* ---------------------------------------------------------------------- */
+    /* --- 5. UI ELEMENTS & CONTROLS --- */
+    /* ---------------------------------------------------------------------- */
+    .header {
+        width: 100%; display: flex; justify-content: space-between;
+        align-items: center; z-index: 20;
+    }
+    .logo { 
+        font-size: 18px;
+        font-weight: bold;
+        color: #00ffff;
+        text-shadow: 0 0 5px #00ffff;
+    }
+    .upload-btn { 
+        display: none !important; 
+    } 
+    input[type="file"] { 
+        display: none; 
+    }
+
+    /* ---------------------------------------------------------------------- */
+    /* --- 6. CENTRAL ART (Beat Reactor) - FIX APPLIED HERE --- */
+    /* ---------------------------------------------------------------------- */
+    .disk-wrapper {
+        width: 240px; height: 240px; 
+        border-radius: 50%; /* Ensures the container is round */
+        background: #000;
+        border: 4px solid rgba(255,255,255,0.1);
+        display: flex; justify-content: center; align-items: center;
+        position: relative; z-index: 5;
+        box-shadow: 0 0 60px rgba(0,0,0,0.9);
+        overflow: hidden; /* **CRUCIAL: Clips media to the rounded border** */
+    }
+    
+    .disk-art {
+        font-size: 100px;
+        /* Using the accent color for a cool effect */
+        color: #ff00ff; 
+        text-shadow: 0 0 15px rgba(255,0,255,0.8);
+        transition: transform 0.05s, opacity 0.3s; /* Added opacity transition */
+        position: absolute; 
+        z-index: 2; 
+        opacity: 1; /* Default visibility */
+    }
+
+    /* **FIX: Ensure centerMedia fills the round wrapper and is clipped** */
+    #centerMedia {
+        position: absolute;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        object-fit: cover;
+        border-radius: 50%; /* **CRUCIAL: Makes the media element itself round** */
+        z-index: 1; 
+        transition: transform 0.05s; 
+    }
+    #centerMedia.image { 
+        opacity: 0.9; 
+    }
+    #centerMedia.video {
+        opacity: 1;
+    }
+
+    /* ---------------------------------------------------------------------- */
+    /* --- 7. CONTROLS (Refined Button and Slider Styles) --- */
+    /* ---------------------------------------------------------------------- */
+    .controls-area { 
+        width: 100%;
+    }
+    .song-info { 
+        text-align: center;
+        margin-bottom: 20px;
+    }
+    .song-title { 
+        font-size: 24px;
+        font-weight: 700;
+        color: #fff;
+    }
+    .artist-name { 
+        font-size: 16px;
+        color: #aaa;
+        margin-top: 5px;
+    }
+    .progress-container { 
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 10px; 
+    }
+    
+    /* Time Display adjustments for better structure */
+    .time-display-wrapper {
+        display: flex;
+        justify-content: space-between;
+        width: 100%;
+        font-size: 12px;
+        color: #bbb;
+    }
+    #currTime, #durTime {
+        width: auto;
+    }
+
+    /* Range Input (Slider) Styling - Track Fill Added Back via CSS Variable for JS */
+    input[type="range"] { 
+        width: 100%;
+        height: 5px;
+        background: transparent;
+        cursor: pointer;
+        -webkit-appearance: none;
+        appearance: none;
+        margin: 0;
+    }
+    input[type="range"]::-webkit-slider-thumb { 
+        -webkit-appearance: none;
+        appearance: none;
+        width: 15px;
+        height: 15px;
+        background: #ff00ff;
+        border-radius: 50%;
+        cursor: pointer;
+        margin-top: -5px; 
+        box-shadow: 0 0 10px #ff00ff;
+    }
+    input[type="range"]::-webkit-slider-runnable-track {
+        height: 5px;
+        /* Re-implementing the track fill color logic via background gradient/variable */
+        background: linear-gradient(to right, #ff00ff 0%, #ff00ff var(--progress-value, 0%), rgba(255, 255, 255, 0.1) var(--progress-value, 0%), rgba(255, 255, 255, 0.1) 100%);
+        border-radius: 2px;
+    }
+
+    .buttons { 
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        margin-top: 30px; 
+    }
+    .btn { 
+        background: rgba(255, 255, 255, 0.1);
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        color: #fff;
+        padding: 10px;
+        border-radius: 50%;
+        cursor: pointer;
+        transition: 0.2s;
+        font-size: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0.8; 
+    }
+    .btn:hover { 
+        opacity: 1;
+        color: #00ffff; 
+        border-color: #00ffff;
+        box-shadow: 0 0 15px #00ffff;
+        transform: scale(1.1);
+    }
+    .play-btn-large { 
+        font-size: 40px; 
+        color: #ff00ff;
+        opacity: 1;
+        filter: drop-shadow(0 0 8px #ff00ff);
+        background: rgba(255, 0, 255, 0.1); 
+        border-color: #ff00ff;
+        padding: 15px;
+        width: 70px; 
+        height: 70px;
+    }
+    .play-btn-large:hover { 
+        transform: scale(1.1); 
+        filter: drop-shadow(0 0 30px #ff00ff); 
+    }
+    .btn-disabled { 
+        opacity: 0.2 !important;
+        pointer-events: none;
+        cursor: default;
+        filter: none;
+    }
+</style>
+</head>
+
+<body>
+
+<div class="bg-anim"></div>
+
+<div id="preLoadMenu">
+  <div class="menu-header">SETUP HYPER-BEAT PLAYER</div>
+  
+  <div class="upload-grid">
+        <label class="menu-upload-btn" id="trackUploadBtn" for="trackFile">
+      <i class="fa-solid fa-file-audio"></i> 1. SELECT TRACK (Required)
+    </label>
+    <input type="file" id="trackFile" accept="audio/*">
+
+        <label class="menu-upload-btn" id="centerMediaUploadBtn" for="centerMediaFile">
+      <i class="fa-solid fa-image"></i> 2. SELECT CENTRE IMAGE/VIDEO
+    </label>
+    <input type="file" id="centerMediaFile" accept="image/*,video/*">
+
+        <label class="menu-upload-btn" id="bgMediaUploadBtn" for="bgMediaFile">
+      <i class="fa-solid fa-video"></i> 3. SELECT BG IMAGE/VIDEO (INSIDE CARD)
+    </label>
+    <input type="file" id="bgMediaFile" accept="image/*,video/*">
+  </div>
+
+  <button id="startPlayerBtn">START PLAYER</button>
+</div>
+
+
+<div class="player-card" id="card">
+    <div id="bgMediaContainer">
+      </div>
+  <canvas id="visualizer"></canvas>
+
+  <div class="header">
+    <div class="logo">OOIY X-TREME</div>
+      </div>
+
+  <div class="disk-wrapper">
+    <i class="fa-solid fa-music disk-art" id="diskIcon"></i>
+    </div>
+
+  <div class="controls-area">
+    <div class="song-info">
+      <h3 class="song-title" id="titleDisplay">WAITING FOR BEAT...</h3>
+      <p class="artist-name" id="statusText">Select a track to begin</p>
+    </div>
+
+    <div class="progress-container">
+      <span class="time-display" id="currTime">0:00</span>
+      <input type="range" id="progressBar" value="0" min="0" max="100" step="0.1">
+      <span class="time-display" id="durTime">0:00</span>
+    </div>
+
+    <div class="buttons">
+      <i class="fa-solid fa-backward-step btn btn-disabled"></i>
+      <i id="playBtn" class="fa-solid fa-circle-play btn play-btn-large"></i>
+      <i class="fa-solid fa-forward-step btn btn-disabled"></i>
+    </div>
+  </div>
+</div>
+
+<script>
+    /* --- SETUP --- */
+    const preLoadMenu           = document.getElementById("preLoadMenu");
+    const startPlayerBtn        = document.getElementById("startPlayerBtn");
+    const card                  = document.getElementById("card");
+
+    // Menu Inputs and Buttons
+    const trackFile             = document.getElementById("trackFile");
+    const trackUploadBtn        = document.getElementById("trackUploadBtn");
+    const centerMediaFile       = document.getElementById("centerMediaFile");
+    const centerMediaUploadBtn  = document.getElementById("centerMediaUploadBtn");
+    const bgMediaFile           = document.getElementById("bgMediaFile");
+    const bgMediaUploadBtn      = document.getElementById("bgMediaUploadBtn");
+
+    // Player Elements
+    const playBtn     = document.getElementById("playBtn");
+    const progressBar = document.getElementById("progressBar");
+    const titleDisplay= document.getElementById("titleDisplay");
+    const statusText  = document.getElementById("statusText");
+    const currTimeEl  = document.getElementById("currTime");
+    const durTimeEl   = document.getElementById("durTime");
+    const canvas      = document.getElementById("visualizer");
+    const ctx         = canvas.getContext("2d");
+    const diskIcon    = document.getElementById("diskIcon");
+    const diskWrapper = document.querySelector(".disk-wrapper");
+    const bgMediaContainer = document.getElementById("bgMediaContainer");
+
+    let audio = new Audio();
+    let isPlaying = false;
+    let trackLoaded = false;
+
+    // Audio Context & Visuals
+    let audioCtx, analyser, src;
+    let dataArray, bufferLength;
+
+    // Resize Canvas
+    function resize() {
+        canvas.width = canvas.clientWidth;
+        canvas.height = canvas.clientHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // --- NEW: PRE-LOAD MENU LOGIC ---
+    function checkReady() {
+        if (trackLoaded) {
+            startPlayerBtn.classList.add('ready');
+            startPlayerBtn.innerText = "START PLAYER (Ready)";
+        } else {
+            startPlayerBtn.classList.remove('ready');
+            startPlayerBtn.innerText = "START PLAYER (Need Track)";
+        }
+    }
+
+    // 1. Track File Load
+    trackFile.onchange = function(e) {
+        const file = e.target.files[0];
+        if(!file) return;
+
+        trackLoaded = true;
+        trackUploadBtn.classList.add('loaded');
+        trackUploadBtn.innerHTML = `<i class="fa-solid fa-check"></i> TRACK: ${file.name.slice(0, 20)}...`;
+
+        titleDisplay.innerText = file.name.replace(/\.[^/.]+$/, "");
+        statusText.innerText = "SINGLE TRACK MODE";
+        
+        audio.src = URL.createObjectURL(file);
+        audio.load();
+        
+        checkReady();
+    };
+
+    // 2. Center Media Load (Image/Video) - **FIX APPLIED HERE**
+    centerMediaFile.onchange = function(e) {
+        const file = e.target.files[0];
+        if(!file) return;
+
+        centerMediaUploadBtn.classList.add('loaded');
+        centerMediaUploadBtn.innerHTML = `<i class="fa-solid fa-check"></i> CENTRE MEDIA: ${file.name.slice(0, 20)}...`;
+
+        let existingMedia = document.getElementById('centerMedia');
+        if (existingMedia) existingMedia.remove();
+
+        const mediaURL = URL.createObjectURL(file);
+        
+        // Hide the default icon when media is loaded
+        diskIcon.style.opacity = '0';
+        
+        if (file.type.startsWith('image/')) {
+            const img = document.createElement('img');
+            img.id = 'centerMedia';
+            img.src = mediaURL;
+            img.classList.add('image');
+            diskWrapper.appendChild(img);
+        } else if (file.type.startsWith('video/')) {
+            const video = document.createElement('video');
+            video.id = 'centerMedia';
+            video.src = mediaURL;
+            video.classList.add('video');
+            video.loop = true;
+            video.muted = true;
+            video.setAttribute('playsinline', ''); // For better mobile playback
+            diskWrapper.appendChild(video);
+        }
+    };
+
+    // 3. Background Media Load (Image/Video)
+    bgMediaFile.onchange = function(e) {
+        const file = e.target.files[0];
+        if(!file) return;
+
+        bgMediaUploadBtn.classList.add('loaded');
+        bgMediaUploadBtn.innerHTML = `<i class="fa-solid fa-check"></i> BG MEDIA: ${file.name.slice(0, 20)}...`;
+
+        // Remove previous media
+        bgMediaContainer.innerHTML = '';
+        const mediaURL = URL.createObjectURL(file);
+        
+        if (file.type.startsWith('image/')) {
+            const img = document.createElement('img');
+            img.src = mediaURL;
+            bgMediaContainer.appendChild(img);
+        } else if (file.type.startsWith('video/')) {
+            const video = document.createElement('video');
+            video.src = mediaURL;
+            video.loop = true;
+            video.muted = true;
+            video.setAttribute('playsinline', '');
+            bgMediaContainer.appendChild(video);
+        }
+    };
+
+    // Initial check
+    checkReady();
+
+    // Start Player Transition
+    startPlayerBtn.onclick = () => {
+        if (!trackLoaded) return alert("Please select a music track first.");
+        
+        // Hide Menu, Show Player
+        preLoadMenu.style.opacity = '0';
+        preLoadMenu.style.pointerEvents = 'none';
+        setTimeout(() => {
+            preLoadMenu.style.display = 'none';
+            card.classList.add('active');
+            
+            // Auto play on successful start
+            playAudio();
+        }, 500); 
+    };
+
+    // --- 2. CONTROLS ---
+    function playAudio() {
+        if(!audio.src) return;
+        if (!audioCtx) setupAudioContext();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+
+        audio.play();
+        isPlaying = true;
+        playBtn.className = "fa-solid fa-circle-pause btn play-btn-large";
+        
+        // Play center video
+        const centerVideo = document.querySelector('#centerMedia.video');
+        if (centerVideo) {
+            centerVideo.play().catch(e => {
+                console.warn("Center video autoplay failed:", e);
+            });
+        }
+        // Play background video
+        const bgVideo = document.querySelector('#bgMediaContainer video');
+        if (bgVideo) {
+            bgVideo.play().catch(e => {
+                console.warn("Background video autoplay failed:", e);
+            });
+        }
+
+        renderVisuals();
+    }
+
+    function pauseAudio() {
+        audio.pause();
+        isPlaying = false;
+        playBtn.className = "fa-solid fa-circle-play btn play-btn-large";
+
+        // Pause center video
+        const centerVideo = document.querySelector('#centerMedia.video');
+        if (centerVideo) centerVideo.pause();
+        // Pause background video
+        const bgVideo = document.querySelector('#bgMediaContainer video');
+        if (bgVideo) bgVideo.pause();
+    }
+
+    playBtn.onclick = () => {
+        if(!audio.src) return; 
+        if(isPlaying) pauseAudio(); else playAudio();
+    };
+
+    // Progress
+    audio.ontimeupdate = () => {
+        if(audio.duration) {
+            const pct = (audio.currentTime / audio.duration) * 100;
+            progressBar.value = pct;
+            progressBar.style.setProperty('--progress-value', `${pct}%`);
+            currTimeEl.innerText = fmtTime(audio.currentTime);
+            durTimeEl.innerText = fmtTime(audio.duration);
+        }
+    };
+
+    progressBar.addEventListener('input', () => {
+        const time = (progressBar.value / 100) * audio.duration;
+        audio.currentTime = time;
+    });
+
+    audio.onended = () => {
+        isPlaying = false;
+        playBtn.className = "fa-solid fa-circle-play btn play-btn-large";
+        progressBar.value = 0;
+        progressBar.style.setProperty('--progress-value', `0%`);
+        
+        const centerVideo = document.querySelector('#centerMedia.video');
+        if (centerVideo) centerVideo.pause();
+        const bgVideo = document.querySelector('#bgMediaContainer video');
+        if (bgVideo) bgVideo.pause();
+    };
+
+    function fmtTime(s) {
+        const m = Math.floor(s/60);
+        const sc = Math.floor(s%60);
+        return m + ":" + (sc<10?"0"+sc:sc);
+    }
+
+    // --- 3. AUDIO SYSTEM ---
+    function setupAudioContext() {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        src = audioCtx.createMediaElementSource(audio);
+        analyser = audioCtx.createAnalyser();
+        src.connect(analyser);
+        analyser.connect(audioCtx.destination);
+        
+        analyser.fftSize = 256; 
+        bufferLength = analyser.frequencyBinCount;
+        dataArray = new Uint8Array(bufferLength);
+    }
+
+    // --- 4. HYBRID VISUALIZER (Adjusted for Center Media) ---
+    function renderVisuals() {
+        if(!isPlaying) return;
+        requestAnimationFrame(renderVisuals);
+        
+        analyser.getByteFrequencyData(dataArray);
+        
+        const w = canvas.width;
+        const h = canvas.height;
+        
+        ctx.clearRect(0, 0, w, h);
+        
+        // --- PART A: KICK DETECTION ---
+        let bass = 0;
+        for(let i=0; i<10; i++) bass += dataArray[i];
+        bass = bass / 10; 
+        
+        const centerMediaElement = document.getElementById('centerMedia');
+
+        if(bass > 220) {
+            card.style.transform = `scale(1.02)`;
+            if (centerMediaElement) {
+              // Apply kick effect to center media
+              centerMediaElement.style.transform = `scale(1.05)`;
+            }
+            // Always apply the glow effect to the icon
+            diskIcon.style.color = "#fff";
+            diskIcon.style.textShadow = "0 0 15px #fff, 0 0 5px #00ffff"; // Enhance glow
+        } else {
+            card.style.transform = `scale(1)`;
+            if (centerMediaElement) {
+              centerMediaElement.style.transform = `scale(1)`;
+            }
+            // Revert icon color and shadow
+            // Only show icon if no media is loaded (opacity check)
+            if (diskIcon.style.opacity !== '0') {
+                 diskIcon.style.color = "#ff00ff"; /* Revert to default Magenta/Pink */
+                 diskIcon.style.textShadow = "0 0 15px rgba(255,0,255,0.8)";
+            }
+        }
+
+        // --- PART B: WAVEFORM DRAWING (Keep as is) ---
+        const barWidth = (w / bufferLength) * 2.5;
+        let barHeight;
+        let x = 0;
+        
+        const time = Date.now() * 0.05;
+
+        for(let i=0; i < bufferLength; i++) {
+            barHeight = dataArray[i] * 1.4; 
+            
+            const hue = (i * 5 + time) % 360; 
+            const gradient = ctx.createLinearGradient(0, h/2 - barHeight, 0, h/2 + barHeight);
+            gradient.addColorStop(0, `hsla(${hue}, 100%, 50%, 0)`);
+            gradient.addColorStop(0.5, `hsla(${hue}, 100%, 60%, 1)`);
+            gradient.addColorStop(1, `hsla(${hue}, 100%, 50%, 0)`);
+
+            ctx.fillStyle = gradient;
+
+            ctx.fillRect(x, h/2 - barHeight/2, barWidth, barHeight); 
+            
+            x += barWidth + 1; 
+        }
+    }
+
+</script>
+
+</body>
+</html>
