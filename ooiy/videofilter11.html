@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Social Builder - Independent Mode</title>
+    <style>
+        :root { --primary: #00f2ff; --bg: #050505; --card: #111; }
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background-color: var(--bg); color: white; margin: 0; 
+            display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+        }
+        header {
+            padding: 12px 20px; display: flex; justify-content: space-between; align-items: center;
+            background: #000; border-bottom: 1px solid #222;
+        }
+        .preview-window { flex-grow: 1; display: flex; align-items: center; justify-content: center; background: #000; position: relative; }
+        canvas { max-width: 100%; max-height: 100%; cursor: crosshair; }
+
+        .controls-panel {
+            background: var(--card); padding: 15px; border-radius: 25px 25px 0 0;
+            border-top: 1px solid #333; max-height: 50vh; overflow-y: auto;
+        }
+        .instruction { font-size: 11px; color: var(--primary); margin-bottom: 10px; text-align: center; font-weight: bold; }
+        
+        .btn-grid { 
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); 
+            gap: 8px; margin-bottom: 15px; 
+        }
+        .item-btn {
+            padding: 12px 5px; background: #1a1a1a; border-radius: 10px;
+            border: 1px solid #333; color: #666; font-size: 10px; font-weight: bold;
+            cursor: pointer; transition: 0.2s; text-align: center; position: relative;
+        }
+        /* Active means the button is visible on screen */
+        .item-btn.active { color: white; border-color: #444; background: #222; }
+        /* Selected means THIS is the one you are moving right now */
+        .item-btn.selected { border-color: var(--primary); background: rgba(0,242,255,0.2); color: var(--primary); transform: scale(1.05); }
+
+        .sticky-footer { position: sticky; bottom: 0; background: var(--card); padding-top: 10px; }
+        .export-btn {
+            width: 100%; padding: 16px; border-radius: 12px; border: none;
+            background: linear-gradient(45deg, var(--primary), #0066ff);
+            color: white; font-weight: 800; cursor: pointer;
+        }
+        #overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.9); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <label style="background:#222; padding:8px 15px; border-radius:8px; font-size:12px; cursor: pointer;">
+            📂 LOAD VIDEO <input type="file" id="upload" accept="video/*" style="display:none">
+        </label>
+        <div style="font-size: 14px; font-weight: 900;">SOCIAL <span style="color:var(--primary)">FREE-MOVE</span></div>
+    </header>
+
+    <div class="preview-window">
+        <div id="overlay"><h1 id="pct">0%</h1><p>RENDERING SEPARATE LAYERS...</p></div>
+        <canvas id="mainCanvas"></canvas>
+    </div>
+
+    <div class="controls-panel">
+        <p class="instruction">1. Tap a button to Enable/Select | 2. Tap Video to Place</p>
+        <div class="btn-grid" id="ui-grid"></div>
+
+        <div class="sticky-footer">
+            <input type="range" id="zoom" min="0.2" max="3" step="0.1" value="1" style="width:100%; margin-bottom:10px;">
+            <button class="export-btn" onclick="exportVideo()">RENDER VIDEO</button>
+        </div>
+    </div>
+
+    <video id="vSource" loop muted playsinline style="display:none"></video>
+
+<script>
+    const canvas = document.getElementById('mainCanvas');
+    const ctx = canvas.getContext('2d');
+    const video = document.getElementById('vSource');
+    const zoomCtrl = document.getElementById('zoom');
+    
+    let selectedId = null;
+    let isExporting = false;
+
+    const socialItems = [
+        { id: 'sub', label: 'SUBSCRIBE', color: '#FF0000', icon: '🔔', x: 50, y: 50, active: false },
+        { id: 'like', label: 'LIKE', color: '#1877F2', icon: '👍', x: 50, y: 120, active: false },
+        { id: 'follow', label: 'FOLLOW', color: '#00f2ff', icon: '➕', x: 50, y: 190, active: false, txt: '#000' },
+        { id: 'join', label: 'JOIN', color: '#00FF00', icon: '⭐', x: 250, y: 50, active: false, txt: '#000' },
+        { id: 'vip', label: 'VIP', color: '#FFD700', icon: '👑', x: 250, y: 120, active: false, txt: '#000' },
+        { id: 'live', label: 'LIVE', color: '#FF0055', icon: '🔴', x: 250, y: 190, active: false },
+        { id: 'insta', label: 'INSTA', color: '#E1306C', icon: '📸', x: 150, y: 150, active: false },
+        { id: 'tiktok', label: 'TIKTOK', color: '#00F2EA', icon: '🎵', x: 150, y: 220, active: false, txt: '#000' }
+        // ... (You can add up to 20 here easily following this format)
+    ];
+
+    // Initialize UI
+    const uiGrid = document.getElementById('ui-grid');
+    socialItems.forEach(item => {
+        const b = document.createElement('div');
+        b.className = 'item-btn';
+        b.id = `btn-${item.id}`;
+        b.innerText = item.label;
+        b.onclick = () => selectButton(item.id);
+        uiGrid.appendChild(b);
+    });
+
+    function selectButton(id) {
+        selectedId = id;
+        const item = socialItems.find(s => s.id === id);
+        item.active = true; // Activate it when clicked
+        
+        document.querySelectorAll('.item-btn').forEach(btn => btn.classList.remove('selected'));
+        document.getElementById(`btn-${id}`).classList.add('active', 'selected');
+    }
+
+    // Capture click on canvas to move ONLY the selected button
+    canvas.addEventListener('mousedown', (e) => {
+        if (!selectedId) return;
+        const rect = canvas.getBoundingClientRect();
+        const item = socialItems.find(s => s.id === selectedId);
+        
+        item.x = ((e.clientX - rect.left) / rect.width) * canvas.width;
+        item.y = ((e.clientY - rect.top) / rect.height) * canvas.height;
+    });
+
+    document.getElementById('upload').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            video.src = URL.createObjectURL(file);
+            video.onloadedmetadata = () => {
+                canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+                video.play(); render();
+            };
+        }
+    });
+
+    function render() {
+        if (!isExporting && !video.paused) {
+            draw();
+            requestAnimationFrame(render);
+        }
+    }
+
+    function draw() {
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        const scale = parseFloat(zoomCtrl.value);
+
+        socialItems.forEach(item => {
+            if (item.active) {
+                ctx.save();
+                ctx.translate(item.x, item.y);
+                ctx.scale(scale, scale);
+                
+                // Neon Glow
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = item.color;
+                
+                // Button Body
+                ctx.beginPath();
+                ctx.roundRect(-80, -25, 160, 50, 15);
+                ctx.fillStyle = item.color;
+                ctx.fill();
+                
+                // Text
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = item.txt || "white";
+                ctx.font = "bold 14px sans-serif";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText(`${item.icon} ${item.label}`, 0, 0);
+                
+                // If it's the one being moved, show a small border
+                if (item.id === selectedId) {
+                    ctx.strokeStyle = "white";
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                }
+                
+                ctx.restore();
+            }
+        });
+    }
+
+    async function exportVideo() {
+        if (!video.src || isExporting) return;
+        isExporting = true;
+        video.pause(); video.currentTime = 0;
+        const chunks = [];
+        const stream = canvas.captureStream(30);
+        const recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9', videoBitsPerSecond: 12000000 });
+        document.getElementById('overlay').style.display = 'flex';
+        recorder.ondataavailable = e => chunks.push(e.data);
+        recorder.onstop = () => {
+            const blob = new Blob(chunks, { type: 'video/webm' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `Custom_Social_Edit.webm`;
+            a.click();
+            location.reload();
+        };
+        recorder.start();
+        video.play();
+        const track = () => {
+            if (video.ended) { recorder.stop(); return; }
+            draw();
+            document.getElementById('pct').innerText = Math.floor((video.currentTime/video.duration)*100) + "%";
+            requestAnimationFrame(track);
+        };
+        track();
+    }
+</script>
+</body>
+</html>

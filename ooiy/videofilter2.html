@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pro Particle Studio</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --bg: #0b0f1a;
+            --card: #161b2c;
+            --text: #ffffff;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0; padding: 0;
+            display: flex; flex-direction: column; height: 100vh;
+            overflow: hidden;
+        }
+
+        .preview-window {
+            position: relative;
+            flex-grow: 1;
+            background: #000;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        canvas { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+        header {
+            position: absolute; top: 15px; left: 15px; right: 15px;
+            z-index: 10; display: flex; justify-content: space-between;
+        }
+
+        .btn-glass {
+            background: rgba(30, 41, 59, 0.8); backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1); color: white;
+            padding: 10px 20px; border-radius: 50px; font-weight: 600; cursor: pointer;
+        }
+
+        .controls-panel {
+            background: var(--card);
+            border-top: 1px solid rgba(255,255,255,0.1);
+            padding: 20px;
+            max-height: 50vh; overflow-y: auto;
+        }
+
+        .section { margin-bottom: 20px; }
+        .section-title { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; margin-bottom: 10px; display: block; }
+
+        .grid-scroll {
+            display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px; scrollbar-width: none;
+        }
+        .grid-scroll::-webkit-scrollbar { display: none; }
+
+        .chip {
+            flex: 0 0 auto; background: #2d334a; padding: 10px 18px; 
+            border-radius: 12px; border: none; color: white; cursor: pointer;
+        }
+        .chip.active { background: var(--primary); box-shadow: 0 0 15px rgba(99, 102, 241, 0.4); }
+
+        .control-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .slider-box label { display: block; font-size: 0.8rem; margin-bottom: 5px; color: #94a3b8; }
+        input[type="range"] { width: 100%; accent-color: var(--primary); }
+
+        .btn-export {
+            width: 100%; padding: 16px; border-radius: 14px; border: none;
+            background: var(--primary); color: white; font-weight: bold; font-size: 1rem; cursor: pointer;
+            margin-top: 10px;
+        }
+
+        #export-status {
+            position: absolute; inset: 0; background: rgba(0,0,0,0.9);
+            display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <label class="btn-glass">📂 Select Video <input type="file" id="videoUpload" accept="video/*" style="display:none"></label>
+        <button class="btn-glass" id="lineBtn" onclick="toggleLine()">Center Line: ON</button>
+    </header>
+
+    <div class="preview-window">
+        <div id="export-status">
+            <h1 id="progress-pct">0%</h1>
+            <p>Rendering High Quality Video...</p>
+        </div>
+        <canvas id="canvas"></canvas>
+        <video id="videoSource" playsinline muted loop></video>
+    </div>
+
+    <div class="controls-panel">
+        <div class="section">
+            <span class="section-title">1. Rain Style (10+ Effects)</span>
+            <div class="grid-scroll" id="effectList">
+                <button class="chip active" onclick="setEffect('rain')">Normal Rain</button>
+                <button class="chip" onclick="setEffect('star')">Star Fall</button>
+                <button class="chip" onclick="setEffect('snow')">Soft Snow</button>
+                <button class="chip" onclick="setEffect('matrix')">Matrix Rain</button>
+                <button class="chip" onclick="setEffect('fire')">Fire Sparks</button>
+                <button class="chip" onclick="setEffect('bubble')">Blue Bubbles</button>
+                <button class="chip" onclick="setEffect('petal')">Sakura Petals</button>
+                <button class="chip" onclick="setEffect('gold')">Gold Dust</button>
+                <button class="chip" onclick="setEffect('cyber')">Cyber Tech</button>
+                <button class="chip" onclick="setEffect('comet')">Comet Tail</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <span class="section-title">2. Movement Direction</span>
+            <div class="grid-scroll" id="dirList">
+                <button class="chip active" onclick="setDir('down')">Top → Down</button>
+                <button class="chip" onclick="setDir('up')">Bottom → Up</button>
+                <button class="chip" onclick="setDir('left')">Right → Left</button>
+                <button class="chip" onclick="setDir('right')">Left → Right</button>
+            </div>
+        </div>
+
+        <div class="control-row section">
+            <div class="slider-box">
+                <label>Speed</label>
+                <input type="range" id="pSpeed" min="1" max="30" value="8">
+            </div>
+            <div class="slider-box">
+                <label>Quantity</label>
+                <input type="range" id="pCount" min="20" max="400" value="100" onchange="initParticles()">
+            </div>
+        </div>
+
+        <div class="section">
+            <span class="section-title">3. Split Preview</span>
+            <input type="range" id="splitRange" min="0" max="100" value="50">
+        </div>
+
+        <button class="btn-export" onclick="startAutomatedExport()">Start Full Export (Auto-Download)</button>
+    </div>
+
+<script>
+    const video = document.getElementById('videoSource');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const splitRange = document.getElementById('splitRange');
+    const pSpeed = document.getElementById('pSpeed');
+    const pCount = document.getElementById('pCount');
+
+    let particles = [];
+    let currentEffect = 'rain';
+    let currentDir = 'down';
+    let showLine = true;
+    let isExporting = false;
+
+    class Particle {
+        constructor() { this.init(); }
+        init() {
+            this.w = canvas.width;
+            this.h = canvas.height;
+            this.x = Math.random() * this.w;
+            this.y = Math.random() * this.h;
+            this.size = Math.random() * 3 + 1;
+            this.vel = (Math.random() * 2 + 1);
+            this.color = this.getColor();
+        }
+        getColor() {
+            const colors = { rain: '#a5f3fc', star: '#fef08a', snow: '#ffffff', matrix: '#22c55e', fire: '#f97316', bubble: '#38bdf8', petal: '#f472b6', gold: '#fbbf24', cyber: '#818cf8', comet: '#ffffff' };
+            return colors[currentEffect] || '#fff';
+        }
+        update() {
+            const s = (parseFloat(pSpeed.value) / 10) * this.vel;
+            if (currentDir === 'down') { this.y += s; if(this.y > this.h) this.y = -10; }
+            if (currentDir === 'up') { this.y -= s; if(this.y < -10) this.y = this.h; }
+            if (currentDir === 'left') { this.x -= s; if(this.x < -10) this.x = this.w; }
+            if (currentDir === 'right') { this.x += s; if(this.x > this.w) this.x = -10; }
+        }
+        draw() {
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            if (currentEffect === 'rain' || currentEffect === 'matrix') {
+                if (currentDir === 'down' || currentDir === 'up') ctx.rect(this.x, this.y, 1, 15);
+                else ctx.rect(this.x, this.y, 15, 1);
+            } else {
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            }
+            ctx.fill();
+        }
+    }
+
+    function initParticles() {
+        particles = [];
+        for (let i = 0; i < pCount.value; i++) particles.push(new Particle());
+    }
+
+    document.getElementById('videoUpload').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            video.src = URL.createObjectURL(file);
+            video.onloadedmetadata = () => {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                initParticles();
+                video.play();
+                requestAnimationFrame(render);
+            };
+        }
+    });
+
+    function setEffect(e) { currentEffect = e; initParticles(); updateUI('#effectList', e); }
+    function setDir(d) { currentDir = d; updateUI('#dirList', d); }
+    function toggleLine() { showLine = !showLine; document.getElementById('lineBtn').innerText = `Center Line: ${showLine?'ON':'OFF'}`; }
+
+    function updateUI(container, val) {
+        document.querySelectorAll(`${container} .chip`).forEach(c => {
+            c.classList.toggle('active', c.getAttribute('onclick').includes(`'${val}'`));
+        });
+    }
+
+    function render() {
+        if (!video.src || isExporting) return;
+        draw();
+        requestAnimationFrame(render);
+    }
+
+    function draw() {
+        const w = canvas.width, h = canvas.height;
+        const splitPos = (splitRange.value / 100) * w;
+
+        // Draw Base Video
+        ctx.filter = 'none';
+        ctx.drawImage(video, 0, 0, w, h);
+
+        // Draw Particle Layer with Split Logic
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, splitPos, h);
+        ctx.clip();
+        
+        particles.forEach(p => { p.update(); p.draw(); });
+        
+        ctx.restore();
+
+        if (showLine && splitPos > 0 && splitPos < w) {
+            ctx.fillStyle = "rgba(255,255,255,0.8)";
+            ctx.fillRect(splitPos - 1, 0, 2, h);
+        }
+    }
+
+    async function startAutomatedExport() {
+        if (!video.src) return;
+        isExporting = true;
+        video.pause();
+        video.currentTime = 0;
+        video.loop = false;
+
+        const chunks = [];
+        const stream = canvas.captureStream(30);
+        const recorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9', videoBitsPerSecond: 5000000 });
+
+        recorder.ondataavailable = e => chunks.push(e.data);
+        recorder.onstop = () => {
+            const blob = new Blob(chunks, { type: 'video/webm' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `filtered_video_${Date.now()}.webm`;
+            a.click();
+            location.reload(); // Reset after download
+        };
+
+        document.getElementById('export-status').style.display = 'flex';
+        recorder.start();
+        video.play();
+
+        const exportLoop = () => {
+            if (video.ended) {
+                recorder.stop();
+                return;
+            }
+            draw();
+            const pct = Math.floor((video.currentTime / video.duration) * 100);
+            document.getElementById('progress-pct').innerText = pct + "%";
+            requestAnimationFrame(exportLoop);
+        };
+        exportLoop();
+    }
+</script>
+</body>
+</html>

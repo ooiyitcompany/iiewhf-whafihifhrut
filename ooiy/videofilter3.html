@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Advanced Video FX Studio</title>
+    <style>
+        :root {
+            --primary: #8b5cf6;
+            --accent: #06b6d4;
+            --bg: #05070a;
+            --card: #111827;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background-color: var(--bg);
+            color: white;
+            margin: 0; padding: 0;
+            display: flex; flex-direction: column; height: 100vh;
+            overflow: hidden;
+        }
+
+        .preview-window {
+            position: relative;
+            flex-grow: 1;
+            background: #000;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        canvas { max-width: 100%; max-height: 100%; object-fit: contain; box-shadow: 0 0 50px rgba(0,0,0,1); }
+
+        header {
+            position: absolute; top: 15px; left: 15px; right: 15px;
+            z-index: 10; display: flex; justify-content: space-between;
+        }
+
+        .btn-glass {
+            background: rgba(17, 24, 39, 0.8); backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.1); color: white;
+            padding: 10px 20px; border-radius: 50px; cursor: pointer; font-size: 14px;
+        }
+
+        .controls-panel {
+            background: var(--card);
+            border-top: 1px solid rgba(255,255,255,0.1);
+            padding: 20px;
+            max-height: 50vh; overflow-y: auto;
+            border-radius: 24px 24px 0 0;
+        }
+
+        .section { margin-bottom: 20px; }
+        .label { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; display: block; }
+
+        .chip-group { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 5px; scrollbar-width: none; }
+        .chip-group::-webkit-scrollbar { display: none; }
+
+        .chip {
+            flex: 0 0 auto; background: #1f2937; padding: 10px 16px; 
+            border-radius: 14px; border: 1px solid transparent; color: #9ca3af; cursor: pointer; transition: 0.3s;
+        }
+        .chip.active { background: var(--primary); color: white; border-color: #a78bfa; box-shadow: 0 0 15px rgba(139, 92, 246, 0.4); }
+
+        .sliders { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        input[type="range"] { width: 100%; accent-color: var(--primary); }
+
+        .btn-export {
+            width: 100%; padding: 18px; border-radius: 16px; border: none;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+            color: white; font-weight: 800; font-size: 16px; cursor: pointer; margin-top: 10px;
+        }
+
+        #status {
+            position: absolute; inset: 0; background: rgba(0,0,0,0.95);
+            display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <label class="btn-glass">📂 Load Media <input type="file" id="videoUpload" accept="video/*" style="display:none"></label>
+        <button class="btn-glass" onclick="toggleLine()">✂️ Split Line: Toggle</button>
+    </header>
+
+    <div class="preview-window">
+        <div id="status"><h1 id="pct">0%</h1><p>Rendering Advanced FX...</p></div>
+        <canvas id="canvas"></canvas>
+        <video id="videoSource" playsinline muted loop style="display:none"></video>
+    </div>
+
+    <div class="controls-panel">
+        <div class="section">
+            <span class="label">Advanced Model (Physics + Distortion)</span>
+            <div class="chip-group" id="fxList">
+                <button class="chip active" onclick="setFX('none')">No FX</button>
+                <button class="chip" onclick="setFX('nebula')">Nebula Dust</button>
+                <button class="chip" onclick="setFX('prism')">Prism Rain</button>
+                <button class="chip" onclick="setFX('glitch')">Cyber Glitch</button>
+                <button class="chip" onclick="setFX('bokeh')">Dreamy Bokeh</button>
+                <button class="chip" onclick="setFX('lightning')">Electric Storm</button>
+                <button class="chip" onclick="setFX('underwater')">Deep Sea</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <span class="label">Flow Direction</span>
+            <div class="chip-group" id="dirList">
+                <button class="chip active" onclick="setDir('down')">Falling</button>
+                <button class="chip" onclick="setDir('up')">Rising</button>
+                <button class="chip" onclick="setDir('right')">Drift Right</button>
+                <button class="chip" onclick="setDir('left')">Drift Left</button>
+            </div>
+        </div>
+
+        <div class="sliders section">
+            <div><span class="label">Intensity / Speed</span><input type="range" id="pSpeed" min="1" max="50" value="10"></div>
+            <div><span class="label">Density</span><input type="range" id="pCount" min="10" max="500" value="150" onchange="initParticles()"></div>
+        </div>
+
+        <div class="section">
+            <span class="label">Split Control</span>
+            <input type="range" id="splitRange" min="0" max="100" value="50">
+        </div>
+
+        <button class="btn-export" onclick="startExport()">Render & Auto-Download WebM</button>
+    </div>
+
+<script>
+    const video = document.getElementById('videoSource');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    let particles = [];
+    let currentFX = 'none';
+    let currentDir = 'down';
+    let showLine = true;
+    let isExporting = false;
+
+    class AdvancedParticle {
+        constructor() { this.init(); }
+        init() {
+            this.w = canvas.width; this.h = canvas.height;
+            this.x = Math.random() * this.w;
+            this.y = Math.random() * this.h;
+            this.z = Math.random() * 5 + 1; // Depth factor
+            this.size = Math.random() * (currentFX === 'bokeh' ? 20 : 4) + 1;
+            this.life = Math.random();
+            this.color = this.getFXColor();
+        }
+        getFXColor() {
+            const fx = { nebula: `hsla(${Math.random()*360}, 70%, 60%, 0.5)`, prism: `hsla(${Math.random()*360}, 100%, 50%, 0.8)`, lightning: '#fff', underwater: '#0ea5e9', glitch: '#ff00ff', bokeh: 'rgba(255,255,255,0.3)' };
+            return fx[currentFX] || '#fff';
+        }
+        update() {
+            const speed = (document.getElementById('pSpeed').value / 10) * this.z;
+            if (currentDir === 'down') this.y += speed;
+            else if (currentDir === 'up') this.y -= speed;
+            else if (currentDir === 'left') this.x -= speed;
+            else if (currentDir === 'right') this.x += speed;
+
+            if (this.y > this.h + 20) this.y = -20;
+            if (this.y < -20) this.y = this.h + 20;
+            if (this.x > this.w + 20) this.x = -20;
+            if (this.x < -20) this.x = this.w + 20;
+        }
+        draw() {
+            ctx.shadowBlur = currentFX === 'lightning' ? 15 : 0;
+            ctx.shadowColor = this.color;
+            ctx.fillStyle = this.color;
+            ctx.globalAlpha = currentFX === 'bokeh' ? 0.3 : 0.8;
+            
+            ctx.beginPath();
+            if (currentFX === 'glitch') ctx.rect(this.x, this.y, this.size * 5, 2);
+            else if (currentFX === 'lightning' && Math.random() > 0.98) {
+                 ctx.moveTo(this.x, 0); ctx.lineTo(this.x + (Math.random()-0.5)*50, this.h);
+                 ctx.strokeStyle = "white"; ctx.lineWidth = 2; ctx.stroke();
+            }
+            else ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+            ctx.shadowBlur = 0;
+        }
+    }
+
+    function initParticles() {
+        particles = Array.from({length: document.getElementById('pCount').value}, () => new AdvancedParticle());
+    }
+
+    document.getElementById('videoUpload').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            video.src = URL.createObjectURL(file);
+            video.onloadedmetadata = () => {
+                canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+                initParticles(); video.play(); render();
+            };
+        }
+    });
+
+    function setFX(fx) { currentFX = fx; initParticles(); updateUI('#fxList', fx); }
+    function setDir(d) { currentDir = d; updateUI('#dirList', d); }
+    function toggleLine() { showLine = !showLine; }
+    function updateUI(id, v) { document.querySelectorAll(`${id} .chip`).forEach(c => c.classList.toggle('active', c.getAttribute('onclick').includes(`'${v}'`))); }
+
+    function render() {
+        if (!video.src || isExporting) return;
+        draw();
+        requestAnimationFrame(render);
+    }
+
+    function draw() {
+        const w = canvas.width, h = canvas.height;
+        const split = (document.getElementById('splitRange').value / 100) * w;
+
+        // Clean slate
+        ctx.clearRect(0,0,w,h);
+        
+        // Background Video
+        ctx.drawImage(video, 0, 0, w, h);
+
+        // Advanced Logic Layer
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, split, h);
+        ctx.clip();
+
+        // Apply Distortion based on FX
+        if (currentFX === 'underwater') {
+            ctx.globalCompositeOperation = 'overlay';
+            ctx.fillStyle = 'rgba(0, 100, 255, 0.2)';
+            ctx.fillRect(0,0,w,h);
+            ctx.globalCompositeOperation = 'source-over';
+        }
+
+        particles.forEach(p => { p.update(); p.draw(); });
+        ctx.restore();
+
+        if (showLine) { ctx.fillStyle = "white"; ctx.fillRect(split-1, 0, 2, h); }
+    }
+
+    function startExport() {
+        isExporting = true; video.pause(); video.currentTime = 0; video.loop = false;
+        const chunks = [];
+        const stream = canvas.captureStream(30);
+        const recorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9', videoBitsPerSecond: 8000000 });
+        
+        document.getElementById('status').style.display = 'flex';
+        recorder.ondataavailable = e => chunks.push(e.data);
+        recorder.onstop = () => {
+            const blob = new Blob(chunks, { type: 'video/webm' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `AdvancedFX_${Date.now()}.webm`;
+            a.click();
+            window.location.reload();
+        };
+
+        recorder.start();
+        video.play();
+
+        const loop = () => {
+            if (video.ended) { recorder.stop(); return; }
+            draw();
+            document.getElementById('pct').innerText = Math.floor((video.currentTime/video.duration)*100) + "%";
+            requestAnimationFrame(loop);
+        };
+        loop();
+    }
+</script>
+</body>
+</html>

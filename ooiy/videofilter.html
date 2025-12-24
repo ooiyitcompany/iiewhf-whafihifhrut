@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Video Filter Pro</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --danger: #ef4444;
+            --bg: #0f172a;
+            --card: #1e293b;
+            --text: #f8fafc;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0; padding: 0;
+            display: flex; flex-direction: column; height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Preview Window */
+        .preview-window {
+            position: relative;
+            flex-grow: 1;
+            background: #000;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        canvas { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+        /* Floating Controls */
+        header {
+            position: absolute; top: 15px; left: 15px; right: 15px;
+            z-index: 10; display: flex; justify-content: space-between;
+        }
+
+        .btn-glass {
+            background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(8px);
+            border: 1px solid rgba(255,255,255,0.1); color: white;
+            padding: 10px 18px; border-radius: 50px; font-weight: 600; cursor: pointer;
+        }
+
+        /* Bottom Panel */
+        .controls-panel {
+            background: var(--card);
+            border-top: 1px solid rgba(255,255,255,0.1);
+            padding: 15px 20px 30px;
+        }
+
+        .section-row { margin-bottom: 15px; }
+        .label-text { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; margin-bottom: 8px; display: block; }
+
+        /* Video Seek Bar */
+        .video-seek-container { width: 100%; display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
+        .time-display { font-family: monospace; font-size: 0.8rem; min-width: 40px; }
+        
+        /* Progress Bars */
+        input[type="range"] { flex-grow: 1; accent-color: var(--primary); cursor: pointer; }
+
+        .horizontal-scroll {
+            display: flex; gap: 10px; overflow-x: auto; padding-bottom: 5px; scrollbar-width: none;
+        }
+        .horizontal-scroll::-webkit-scrollbar { display: none; }
+
+        .chip {
+            flex: 0 0 auto; background: #334155; padding: 8px 16px; 
+            border-radius: 10px; border: none; color: white; cursor: pointer;
+        }
+        .chip.active { background: var(--primary); font-weight: bold; }
+
+        .btn-record {
+            width: 100%; padding: 14px; border-radius: 12px; border: none;
+            background: var(--primary); color: white; font-weight: bold; cursor: pointer;
+        }
+
+        #status-overlay {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.8); padding: 20px; border-radius: 15px;
+            text-align: center; display: none; z-index: 100;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <label class="btn-glass">
+            📂 Open Video
+            <input type="file" id="videoUpload" accept="video/*" style="display:none">
+        </label>
+        <button class="btn-glass" id="lineToggle" onclick="toggleLine()">Line: ON</button>
+    </header>
+
+    <div class="preview-window">
+        <div id="status-overlay">
+            <h2 id="status-text">Exporting...</h2>
+            <p>Please do not close this tab</p>
+        </div>
+        <canvas id="canvas"></canvas>
+        <video id="videoSource" playsinline muted></video>
+    </div>
+
+    <div class="controls-panel">
+        <div class="video-seek-container">
+            <span class="time-display" id="currentTime">0:00</span>
+            <input type="range" id="videoProgress" min="0" max="100" value="0">
+            <span class="time-display" id="duration">0:00</span>
+        </div>
+
+        <div class="section-row">
+            <span class="label-text">Split & Direction</span>
+            <div style="display: flex; gap: 15px; align-items: center;">
+                <button class="chip" id="dirToggle" onclick="toggleDir()">L ← R</button>
+                <input type="range" id="splitRange" min="0" max="100" value="50">
+            </div>
+        </div>
+
+        <div class="section-row">
+            <span class="label-text">Filters</span>
+            <div class="horizontal-scroll" id="filterList">
+                <button class="chip active" onclick="setFilter('none')">Original</button>
+                <button class="chip" onclick="setFilter('vivid')">Vivid</button>
+                <button class="chip" onclick="setFilter('grayscale')">Mono</button>
+                <button class="chip" onclick="setFilter('sepia')">Vintage</button>
+                <button class="chip" onclick="setFilter('invert')">Invert</button>
+                <button class="chip" onclick="setFilter('noir')">Noir</button>
+                <button class="chip" onclick="setFilter('cold')">Cool</button>
+                <button class="chip" onclick="setFilter('warm')">Warm</button>
+            </div>
+        </div>
+
+        <button id="exportBtn" class="btn-record" onclick="handleExport()">Start Full Export (Start to End)</button>
+    </div>
+
+<script>
+    const video = document.getElementById('videoSource');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const videoProgress = document.getElementById('videoProgress');
+    const splitRange = document.getElementById('splitRange');
+    
+    let currentFilter = 'none';
+    let filterDirection = 'left';
+    let showLine = true;
+    let isExporting = false;
+    let mediaRecorder;
+    let recordedChunks = [];
+
+    // --- Video Logic ---
+    document.getElementById('videoUpload').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            video.src = URL.createObjectURL(file);
+            video.onloadedmetadata = () => {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                document.getElementById('duration').innerText = formatTime(video.duration);
+                video.play();
+                requestAnimationFrame(render);
+            };
+        }
+    });
+
+    // Seek logic
+    videoProgress.addEventListener('input', () => {
+        video.currentTime = (videoProgress.value / 100) * video.duration;
+    });
+
+    video.addEventListener('timeupdate', () => {
+        if (!isExporting) {
+            const val = (video.currentTime / video.duration) * 100;
+            videoProgress.value = val;
+            document.getElementById('currentTime').innerText = formatTime(video.currentTime);
+        }
+    });
+
+    function formatTime(seconds) {
+        const m = Math.floor(seconds / 60);
+        const s = Math.floor(seconds % 60);
+        return `${m}:${s < 10 ? '0' : ''}${s}`;
+    }
+
+    function toggleLine() {
+        showLine = !showLine;
+        document.getElementById('lineToggle').innerText = `Line: ${showLine ? 'ON' : 'OFF'}`;
+    }
+
+    function toggleDir() {
+        filterDirection = filterDirection === 'left' ? 'right' : 'left';
+        document.getElementById('dirToggle').innerText = filterDirection === 'left' ? 'L ← R' : 'R → L';
+    }
+
+    function setFilter(type) {
+        currentFilter = type;
+        document.querySelectorAll('#filterList .chip').forEach(c => {
+            c.classList.toggle('active', c.innerText.toLowerCase().includes(type) || (type==='none' && c.innerText==='Original'));
+        });
+    }
+
+    // --- Drawing Engine ---
+    function render() {
+        if (!video.src) return;
+        
+        const w = canvas.width;
+        const h = canvas.height;
+        const splitPos = (splitRange.value / 100) * w;
+
+        // Base Layer
+        ctx.filter = 'none';
+        ctx.drawImage(video, 0, 0, w, h);
+
+        if (currentFilter !== 'none') {
+            ctx.save();
+            ctx.beginPath();
+            if (filterDirection === 'left') ctx.rect(0, 0, splitPos, h);
+            else ctx.rect(splitPos, 0, w - splitPos, h);
+            ctx.clip();
+            
+            applyFilterSettings();
+            ctx.drawImage(video, 0, 0, w, h);
+            ctx.restore();
+
+            if (showLine) {
+                ctx.fillStyle = "white";
+                ctx.fillRect(splitPos - 2, 0, 4, h);
+            }
+        }
+        if (!isExporting) requestAnimationFrame(render);
+    }
+
+    function applyFilterSettings() {
+        switch(currentFilter) {
+            case 'vivid': ctx.filter = 'saturate(200%) contrast(110%)'; break;
+            case 'grayscale': ctx.filter = 'grayscale(100%)'; break;
+            case 'sepia': ctx.filter = 'sepia(100%)'; break;
+            case 'invert': ctx.filter = 'invert(100%)'; break;
+            case 'noir': ctx.filter = 'grayscale(100%) contrast(150%)'; break;
+            case 'cold': ctx.filter = 'hue-rotate(150deg) saturate(120%)'; break;
+            case 'warm': ctx.filter = 'sepia(50%) saturate(140%)'; break;
+            default: ctx.filter = 'none';
+        }
+    }
+
+    // --- Full Export Logic (Start to End) ---
+    async function handleExport() {
+        if (!video.src) return alert("Upload a video first");
+        
+        isExporting = true;
+        recordedChunks = [];
+        document.getElementById('status-overlay').style.display = 'block';
+        
+        // Go to start
+        video.pause();
+        video.currentTime = 0;
+        
+        // Set up Recorder
+        const stream = canvas.captureStream(30);
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9' });
+        
+        mediaRecorder.ondataavailable = (e) => recordedChunks.push(e.data);
+        mediaRecorder.onstop = () => {
+            const blob = new Blob(recordedChunks, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'exported-video.webm';
+            a.click();
+            resetUI();
+        };
+
+        // Start playing and recording
+        mediaRecorder.start();
+        video.play();
+
+        // Process frames
+        const processExport = () => {
+            if (video.ended) {
+                mediaRecorder.stop();
+                return;
+            }
+            render();
+            const pct = Math.floor((video.currentTime / video.duration) * 100);
+            document.getElementById('status-text').innerText = `Exporting: ${pct}%`;
+            requestAnimationFrame(processExport);
+        };
+        
+        processExport();
+    }
+
+    function resetUI() {
+        isExporting = false;
+        document.getElementById('status-overlay').style.display = 'none';
+        video.currentTime = 0;
+        video.play();
+        requestAnimationFrame(render);
+    }
+</script>
+</body>
+</html>

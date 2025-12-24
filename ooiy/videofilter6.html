@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mobile Video FX Lab</title>
+    <style>
+        :root {
+            --primary: #00f2ff;
+            --accent: #7000ff;
+            --bg: #050505;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: white;
+            margin: 0; padding: 0;
+            display: flex; flex-direction: column; height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Top Bar */
+        header {
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
+            position: absolute; top: 0; width: 100%; z-index: 10;
+            box-sizing: border-box;
+        }
+
+        .icon-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            width: 40px; height: 40px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            backdrop-filter: blur(10px); cursor: pointer;
+        }
+
+        /* Main Viewport */
+        .viewport {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+            position: relative;
+        }
+
+        canvas {
+            max-width: 100%;
+            max-height: 85vh;
+            border-radius: 12px;
+            box-shadow: 0 0 40px rgba(0,0,0,1);
+        }
+
+        /* Bottom Controls */
+        .controls {
+            background: linear-gradient(to top, #000 80%, transparent);
+            padding: 20px 0 40px 0;
+            position: absolute; bottom: 0; width: 100%;
+        }
+
+        .fx-carousel {
+            display: flex;
+            gap: 15px;
+            overflow-x: auto;
+            padding: 10px 20px;
+            scrollbar-width: none;
+        }
+        .fx-carousel::-webkit-scrollbar { display: none; }
+
+        .fx-item {
+            flex: 0 0 70px;
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .fx-item:active { transform: scale(0.9); }
+
+        .fx-thumb {
+            width: 60px; height: 60px;
+            border-radius: 15px;
+            background: #222;
+            margin-bottom: 8px;
+            border: 2px solid transparent;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px;
+            background-size: cover;
+        }
+        .fx-item.active .fx-thumb {
+            border-color: var(--primary);
+            box-shadow: 0 0 15px var(--primary);
+        }
+        .fx-name { font-size: 10px; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        .export-btn {
+            background: white;
+            color: black;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 30px;
+            font-weight: bold;
+            display: block;
+            margin: 15px auto 0;
+            cursor: pointer;
+        }
+
+        #loading {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.9);
+            display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <label class="icon-btn">📁<input type="file" id="upload" accept="video/*" hidden></label>
+        <div style="font-weight: bold; font-size: 14px; letter-spacing: 2px;">FX STUDIO</div>
+        <button class="icon-btn" onclick="location.reload()">🔄</button>
+    </header>
+
+    <div class="viewport">
+        <div id="loading"><h2 id="pct">0%</h2><p>Applying Magic...</p></div>
+        <canvas id="mainCanvas"></canvas>
+    </div>
+
+    <div class="controls">
+        <div class="fx-carousel" id="fxList">
+            </div>
+        <button class="export-btn" onclick="startExport()">SAVE VIDEO</button>
+    </div>
+
+    <video id="vSource" loop muted playsinline style="display:none"></video>
+
+<script>
+    const video = document.getElementById('vSource');
+    const canvas = document.getElementById('mainCanvas');
+    const ctx = canvas.getContext('2d', {willReadFrequently: true});
+    const fxList = document.getElementById('fxList');
+    
+    let currentFX = 'Normal';
+    let isExporting = false;
+
+    // Effect Definitions
+    const effects = [
+        { name: 'Normal', icon: '🎬', filter: 'none' },
+        { name: 'Cyber', icon: '💎', filter: 'hue-rotate(150deg) saturate(2) contrast(1.2)' },
+        { name: 'Vintage', icon: '🎞️', filter: 'sepia(0.6) contrast(0.9) brightness(1.1)' },
+        { name: 'Noir', icon: '🌑', filter: 'grayscale(1) contrast(1.5)' },
+        { name: 'Dream', icon: '☁️', filter: 'blur(2px) saturate(1.5) brightness(1.2)' },
+        { name: 'Vibrant', icon: '🌈', filter: 'saturate(2.5) contrast(1.1)' },
+        { name: 'VHS', icon: '📼', special: 'vhs' },
+        { name: 'Glitch', icon: '👾', special: 'glitch' },
+        { name: 'RGB', icon: '🚥', special: 'rgb' },
+        { name: 'CRT', icon: '📺', special: 'crt' },
+        { name: 'Neon', icon: '🔮', filter: 'invert(1) hue-rotate(180deg) saturate(3)' },
+        { name: 'Cold', icon: '❄️', filter: 'hue-rotate(180deg) brightness(0.9)' }
+    ];
+
+    // Build UI
+    effects.forEach(fx => {
+        const div = document.createElement('div');
+        div.className = `fx-item ${fx.name === 'Normal' ? 'active' : ''}`;
+        div.innerHTML = `<div class="fx-thumb">${fx.icon}</div><div class="fx-name">${fx.name}</div>`;
+        div.onclick = () => {
+            document.querySelectorAll('.fx-item').forEach(i => i.classList.remove('active'));
+            div.classList.add('active');
+            currentFX = fx.name;
+        };
+        fxList.appendChild(div);
+    });
+
+    document.getElementById('upload').onchange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            video.src = URL.createObjectURL(file);
+            video.onloadedmetadata = () => {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                video.play();
+                requestAnimationFrame(render);
+            };
+        }
+    };
+
+    function render() {
+        if (!video.paused && !video.ended && !isExporting) {
+            applyEffects();
+            requestAnimationFrame(render);
+        }
+    }
+
+    function applyEffects() {
+        const w = canvas.width;
+        const h = canvas.height;
+        const fx = effects.find(f => f.name === currentFX);
+
+        ctx.filter = fx.filter || 'none';
+        ctx.drawImage(video, 0, 0, w, h);
+
+        // Special Pixel-based Effects
+        if (fx.special === 'vhs') {
+            ctx.globalAlpha = 0.2;
+            ctx.fillStyle = '#fff';
+            for(let i=0; i<10; i++) ctx.fillRect(0, Math.random()*h, w, 1);
+            ctx.globalAlpha = 1.0;
+        } 
+        else if (fx.special === 'glitch') {
+            if (Math.random() > 0.9) {
+                ctx.drawImage(video, Math.random()*20, 0, w, h, -10, 0, w, h);
+            }
+        }
+        else if (fx.special === 'rgb') {
+            ctx.globalCompositeOperation = 'screen';
+            ctx.filter = 'none';
+            // Red
+            ctx.globalAlpha = 0.5;
+            ctx.drawImage(video, -5, 0, w, h);
+            // Blue
+            ctx.drawImage(video, 5, 0, w, h);
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.globalAlpha = 1.0;
+        }
+        else if (fx.special === 'crt') {
+            ctx.fillStyle = "rgba(0,0,0,0.15)";
+            for(let i=0; i<h; i+=4) ctx.fillRect(0, i, w, 2);
+        }
+    }
+
+    async function startExport() {
+        if (!video.src) return;
+        isExporting = true;
+        video.pause(); video.currentTime = 0;
+        
+        const chunks = [];
+        const stream = canvas.captureStream(30);
+        const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+
+        document.getElementById('loading').style.display = 'flex';
+        
+        recorder.ondataavailable = e => chunks.push(e.data);
+        recorder.onstop = () => {
+            const blob = new Blob(chunks, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `MobileFX_${Date.now()}.webm`;
+            a.click();
+            location.reload();
+        };
+
+        recorder.start();
+        video.play();
+
+        const exportLoop = () => {
+            if (video.ended) { recorder.stop(); return; }
+            applyEffects();
+            document.getElementById('pct').innerText = Math.floor((video.currentTime/video.duration)*100) + "%";
+            requestAnimationFrame(exportLoop);
+        };
+        exportLoop();
+    }
+</script>
+</body>
+</html>

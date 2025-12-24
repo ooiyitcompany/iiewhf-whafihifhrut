@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FX Studio: Particle Crackers</title>
+    <style>
+        :root { --primary: #ffdd00; --accent: #ff00ff; --bg: #050505; --card: #1a1a1c; }
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background-color: var(--bg); color: white; margin: 0; 
+            display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+        }
+        header { padding: 12px; display: flex; justify-content: space-between; align-items: center; background: #000; border-bottom: 1px solid #222;}
+        .preview-window { flex-grow: 1; display: flex; align-items: center; justify-content: center; background: #000; position: relative; }
+        canvas { max-width: 100%; max-height: 100%; }
+
+        .controls-panel {
+            background: var(--card); padding: 15px; border-radius: 20px 20px 0 0;
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.5);
+        }
+        
+        /* Power Sliders */
+        .settings-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
+        .slider-box { background: #252528; padding: 10px; border-radius: 12px; }
+        .label { font-size: 10px; color: #888; text-transform: uppercase; margin-bottom: 5px; display: block; }
+        input[type="range"] { width: 100%; accent-color: var(--primary); }
+
+        .fx-scroll { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px; scrollbar-width: none; }
+        .fx-scroll::-webkit-scrollbar { display: none; }
+
+        .btn-fx {
+            flex: 0 0 70px; height: 70px; background: #222; border-radius: 12px;
+            border: 1px solid #333; color: #777; font-size: 10px; display: flex; 
+            flex-direction: column; align-items: center; justify-content: center; transition: 0.2s;
+        }
+        .btn-fx.active { border-color: var(--primary); color: var(--primary); background: rgba(255, 221, 0, 0.1); }
+        .btn-fx i { font-size: 20px; margin-bottom: 3px; font-style: normal; }
+
+        .export-btn {
+            width: 100%; padding: 15px; border-radius: 12px; border: none;
+            background: linear-gradient(45deg, var(--primary), #ffa200);
+            color: black; font-weight: 800; font-size: 14px; margin-top: 5px;
+        }
+        #overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.9); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <label style="background:#333; padding:6px 12px; border-radius:6px; font-size:11px;">
+            📂 IMPORT <input type="file" id="upload" accept="video/*" style="display:none">
+        </label>
+        <div style="font-weight: 900; color: var(--primary);">CRACKER FX PRO</div>
+    </header>
+
+    <div class="preview-window">
+        <div id="overlay"><h1 id="pct">0%</h1><p>Igniting Crackers...</p></div>
+        <canvas id="mainCanvas"></canvas>
+    </div>
+
+    <div class="controls-panel">
+        <div class="settings-row">
+            <div class="slider-box">
+                <span class="label">Quantity (Density)</span>
+                <input type="range" id="qty" min="1" max="100" value="20">
+            </div>
+            <div class="slider-box">
+                <span class="label">Speed (Velocity)</span>
+                <input type="range" id="spd" min="1" max="50" value="10">
+            </div>
+        </div>
+
+        <span class="label">Cracker Style & Color Out</span>
+        <div class="fx-scroll">
+            <button class="btn-fx active" onclick="setFX('none')"><i>🚫</i>None</button>
+            <button class="btn-fx" onclick="setFX('firework')"><i>🎆</i>Firework</button>
+            <button class="btn-fx" onclick="setFX('spark')"><i>✨</i>Sparks</button>
+            <button class="btn-fx" onclick="setFX('confetti')"><i>🎉</i>Confetti</button>
+            <button class="btn-fx" onclick="setFX('nebula')"><i>☁️</i>Nebula</button>
+            <button class="btn-fx" onclick="setFX('shockwave')"><i>⭕</i>Shock</button>
+            <button class="btn-fx" onclick="setFX('rain')"><i>☔</i>Color Rain</button>
+            <button class="btn-fx" onclick="setFX('blizzard')"><i>❄️</i>Blizzard</button>
+            <button class="btn-fx" onclick="setFX('glitter')"><i>🌟</i>Glitter</button>
+        </div>
+
+        <button class="export-btn" id="exportBtn" onclick="exportVideo()">EXPORT MASTER PIECE</button>
+    </div>
+
+    <video id="vSource" loop muted playsinline style="display:none"></video>
+
+<script>
+    const canvas = document.getElementById('mainCanvas');
+    const ctx = canvas.getContext('2d');
+    const video = document.getElementById('vSource');
+    let currentFX = 'none';
+    let particles = [];
+    let isExporting = false;
+
+    class Particle {
+        constructor(x, y, color, speed) {
+            this.x = x; this.y = y;
+            this.color = color;
+            this.angle = Math.random() * Math.PI * 2;
+            this.velocity = (Math.random() * speed) + 2;
+            this.life = 1.0;
+            this.decay = Math.random() * 0.02 + 0.01;
+            this.size = Math.random() * 5 + 2;
+        }
+        update() {
+            this.x += Math.cos(this.angle) * this.velocity;
+            this.y += Math.sin(this.angle) * this.velocity;
+            this.life -= this.decay;
+        }
+        draw() {
+            ctx.globalAlpha = this.life;
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    document.getElementById('upload').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            video.src = URL.createObjectURL(file);
+            video.onloadedmetadata = () => {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                video.play();
+                requestAnimationFrame(renderLoop);
+            };
+        }
+    });
+
+    function setFX(fx) {
+        currentFX = fx;
+        particles = [];
+        document.querySelectorAll('.btn-fx').forEach(b => {
+            b.classList.toggle('active', b.getAttribute('onclick').includes(`'${fx}'`));
+        });
+    }
+
+    function renderLoop() {
+        if (!isExporting && !video.paused) {
+            processFrame();
+            requestAnimationFrame(renderLoop);
+        }
+    }
+
+    function processFrame() {
+        const w = canvas.width, h = canvas.height;
+        const qty = parseInt(document.getElementById('qty').value);
+        const speed = parseInt(document.getElementById('spd').value);
+
+        ctx.save();
+        ctx.clearRect(0,0,w,h);
+        ctx.drawImage(video, 0, 0, w, h);
+
+        // Cracker Logic
+        if (currentFX !== 'none') {
+            // Spawn Particles
+            if (Math.random() < 0.1) {
+                const colors = ['#ff0055', '#00f2ff', '#ffdd00', '#7000ff', '#00ff44'];
+                const rc = colors[Math.floor(Math.random() * colors.length)];
+                const rx = Math.random() * w;
+                const ry = Math.random() * h;
+                
+                for(let i=0; i < qty; i++) {
+                    particles.push(new Particle(rx, ry, rc, speed));
+                }
+            }
+
+            // Update & Draw Particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                particles[i].update();
+                particles[i].draw();
+                if (particles[i].life <= 0) particles.splice(i, 1);
+            }
+        }
+        
+        ctx.restore();
+    }
+
+    async function exportVideo() {
+        if (!video.src || isExporting) return;
+        isExporting = true;
+        const btn = document.getElementById('exportBtn');
+        btn.innerText = "EXPLODING..."; btn.disabled = true;
+
+        video.pause(); video.currentTime = 0; video.loop = false;
+        const chunks = [];
+        const stream = canvas.captureStream(30);
+        const recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9', videoBitsPerSecond: 12000000 });
+
+        document.getElementById('overlay').style.display = 'flex';
+        recorder.ondataavailable = e => chunks.push(e.data);
+        recorder.onstop = () => {
+            const blob = new Blob(chunks, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = `CrackerFX_${Date.now()}.webm`;
+            a.click();
+            setTimeout(() => window.location.reload(), 1500);
+        };
+
+        recorder.start();
+        video.play();
+
+        const track = () => {
+            if (video.ended) { recorder.stop(); return; }
+            processFrame();
+            document.getElementById('pct').innerText = Math.floor((video.currentTime/video.duration)*100) + "%";
+            requestAnimationFrame(track);
+        };
+        track();
+    }
+</script>
+</body>
+</html>

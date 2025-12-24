@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VHS & GLITCH LAB</title>
+    <style>
+        :root {
+            --neon-blue: #00f2ff;
+            --neon-pink: #ff00ff;
+            --bg: #0a0a0c;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background-color: var(--bg);
+            color: white;
+            margin: 0; overflow: hidden;
+            display: flex; flex-direction: column; height: 100vh;
+        }
+
+        /* Scanline Overlay Effect */
+        body::after {
+            content: " ";
+            position: absolute; inset: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 3px 100%;
+            z-index: 100; pointer-events: none;
+        }
+
+        header {
+            padding: 20px; text-align: center;
+            background: #000; border-bottom: 2px solid #222;
+        }
+
+        .viewport {
+            flex-grow: 1; display: flex; align-items: center; justify-content: center;
+            background: #000; position: relative;
+        }
+
+        canvas { max-width: 95%; max-height: 80vh; image-rendering: pixelated; }
+
+        .vhs-info {
+            position: absolute; top: 20px; left: 20px;
+            color: #eee; font-size: 14px; text-shadow: 2px 2px #000;
+            z-index: 10; pointer-events: none;
+        }
+
+        .controls {
+            background: #000; padding: 20px;
+            border-top: 2px solid #222;
+        }
+
+        .fx-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 10px; height: 120px; overflow-y: auto;
+        }
+
+        .fx-btn {
+            background: #111; border: 1px solid #333; color: #888;
+            padding: 10px; font-size: 10px; cursor: pointer;
+            text-transform: uppercase; transition: 0.2s;
+        }
+
+        .fx-btn.active {
+            background: #222; border-color: var(--neon-blue); color: var(--neon-blue);
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        .export-area {
+            display: flex; gap: 10px; margin-top: 15px;
+        }
+
+        .btn-main {
+            flex: 1; padding: 12px; border: none; font-weight: bold;
+            cursor: pointer; text-transform: uppercase;
+        }
+
+        #upload-btn { background: #333; color: white; }
+        #save-btn { background: var(--neon-pink); color: white; }
+
+        #overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.9);
+            display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 200;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <span style="letter-spacing: 5px; color: var(--neon-blue);">GLITCH_MODELS_V.2.0</span>
+    </header>
+
+    <div class="viewport">
+        <div class="vhs-info" id="vhsTime">PLAY<br>00:00:00</div>
+        <div id="overlay"><h1 id="pct">0%</h1><p>CORRUPTING DATA...</p></div>
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <div class="controls">
+        <div class="fx-grid" id="fxGrid"></div>
+        <div class="export-area">
+            <button class="btn-main" id="upload-btn" onclick="document.getElementById('fileIn').click()">Load Video</button>
+            <button class="btn-main" id="save-btn" onclick="startExport()">Record to WebM</button>
+            <input type="file" id="fileIn" accept="video/*" hidden>
+        </div>
+    </div>
+
+    <video id="vSource" loop muted playsinline style="display:none"></video>
+
+<script>
+    const video = document.getElementById('vSource');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d', {willReadFrequently: true});
+    const fxGrid = document.getElementById('fxGrid');
+    
+    let currentFX = 'VHS_Standard';
+    let isExporting = false;
+    let frameCount = 0;
+
+    const glitchModels = [
+        { id: 'VHS_Standard', label: 'VHS Standard' },
+        { id: 'tracking', label: 'Tracking Error' },
+        { id: 'chroma_drift', label: 'Chroma Drift' },
+        { id: 'data_mosh', label: 'Bit Corrupt' },
+        { id: 'rgb_split', label: 'RGB Ghost' },
+        { id: 'noise_gate', label: 'Static Heavy' },
+        { id: 'interlace', label: 'Interlace' },
+        { id: 'slice', label: 'Vertical Slice' },
+        { id: 'bad_sync', label: 'V-Sync Fail' },
+        { id: 'invert_glitch', label: 'Negativ-X' },
+        { id: 'acid_burn', label: 'Acid Burn' },
+        { id: 're-entry', label: 'Re-Entry' }
+    ];
+
+    // Build Buttons
+    glitchModels.forEach(model => {
+        const btn = document.createElement('button');
+        btn.className = `fx-btn ${model.id === currentFX ? 'active' : ''}`;
+        btn.innerText = model.label;
+        btn.onclick = () => {
+            document.querySelectorAll('.fx-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentFX = model.id;
+        };
+        fxGrid.appendChild(btn);
+    });
+
+    document.getElementById('fileIn').onchange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            video.src = URL.createObjectURL(file);
+            video.onloadedmetadata = () => {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                video.play();
+                requestAnimationFrame(render);
+            };
+        }
+    };
+
+    function render() {
+        if (!video.paused && !video.ended && !isExporting) {
+            processGlitch();
+            updateTimecode();
+            frameCount++;
+            requestAnimationFrame(render);
+        }
+    }
+
+    function processGlitch() {
+        const w = canvas.width;
+        const h = canvas.height;
+        
+        ctx.filter = 'none';
+        ctx.globalCompositeOperation = 'source-over';
+        
+        // Base Layer
+        ctx.drawImage(video, 0, 0, w, h);
+
+        switch(currentFX) {
+            case 'tracking':
+                if (Math.random() > 0.9) {
+                    let y = Math.random() * h;
+                    ctx.drawImage(video, 0, y, w, 10, Math.random()*20-10, y, w, 10);
+                }
+                break;
+
+            case 'chroma_drift':
+                ctx.globalCompositeOperation = 'screen';
+                ctx.drawImage(video, 2, 0, w, h); // Cyan
+                ctx.globalAlpha = 0.5;
+                ctx.drawImage(video, -2, 0, w, h); // Red
+                ctx.globalAlpha = 1.0;
+                break;
+
+            case 'data_mosh':
+                if (frameCount % 5 === 0) {
+                    let sliceY = Math.random() * h;
+                    ctx.drawImage(canvas, 0, sliceY, w, 20, 5, sliceY + 2, w, 20);
+                }
+                break;
+
+            case 'rgb_split':
+                ctx.drawImage(video, 0, 0, w, h);
+                ctx.globalCompositeOperation = 'multiply';
+                ctx.fillStyle = '#f0f'; 
+                ctx.fillRect(Math.sin(frameCount/10)*5, 0, w, h);
+                break;
+
+            case 'noise_gate':
+                let idata = ctx.getImageData(0,0,w,h);
+                for(let i=0; i<idata.data.length; i+=Math.random() > 0.9 ? 4 : 200) {
+                    idata.data[i] = Math.random() * 255;
+                }
+                ctx.putImageData(idata, 0, 0);
+                break;
+
+            case 'interlace':
+                ctx.fillStyle = "rgba(0,0,0,0.5)";
+                for(let i=0; i<h; i+=4) ctx.fillRect(0, i, w, 2);
+                break;
+
+            case 'bad_sync':
+                let offset = (frameCount * 5) % h;
+                ctx.drawImage(video, 0, offset, w, h);
+                ctx.drawImage(video, 0, offset - h, w, h);
+                break;
+
+            case 'slice':
+                for(let i=0; i<10; i++) {
+                    let x = Math.random() * w;
+                    ctx.drawImage(video, x, 0, 1, h, x + (Math.random()*10-5), 0, 1, h);
+                }
+                break;
+
+            case 'acid_burn':
+                ctx.filter = `hue-rotate(${frameCount % 360}deg) saturate(5) contrast(2)`;
+                ctx.drawImage(video, 0, 0, w, h);
+                break;
+
+            case 're-entry':
+                ctx.globalAlpha = 0.3;
+                ctx.drawImage(canvas, -10, -10, w+20, h+20);
+                ctx.globalAlpha = 1.0;
+                break;
+                
+            case 'invert_glitch':
+                if(Math.random() > 0.95) ctx.filter = 'invert(1)';
+                ctx.drawImage(video, 0, 0, w, h);
+                break;
+
+            default: // VHS Standard
+                ctx.filter = 'contrast(1.2) brightness(1.1) saturate(0.8)';
+                ctx.drawImage(video, 0, 0, w, h);
+                if (Math.random() > 0.8) {
+                    ctx.fillStyle = "rgba(255,255,255,0.2)";
+                    ctx.fillRect(0, Math.random()*h, w, 1);
+                }
+        }
+    }
+
+    function updateTimecode() {
+        const now = new Date();
+        const time = video.currentTime;
+        const h = Math.floor(time / 3600).toString().padStart(2, '0');
+        const m = Math.floor((time % 3600) / 60).toString().padStart(2, '0');
+        const s = Math.floor(time % 60).toString().padStart(2, '0');
+        document.getElementById('vhsTime').innerHTML = `PLAY<br>${h}:${m}:${s}`;
+    }
+
+    async function startExport() {
+        if (!video.src) return;
+        isExporting = true;
+        video.pause(); video.currentTime = 0;
+        
+        const chunks = [];
+        const stream = canvas.captureStream(30);
+        const recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9' });
+
+        document.getElementById('overlay').style.display = 'flex';
+        recorder.ondataavailable = e => chunks.push(e.data);
+        recorder.onstop = () => {
+            const blob = new Blob(chunks, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `GLITCH_TAPE_${Date.now()}.webm`;
+            a.click();
+            window.location.reload();
+        };
+
+        recorder.start();
+        video.play();
+
+        const exportLoop = () => {
+            if (video.ended) { recorder.stop(); return; }
+            processGlitch();
+            document.getElementById('pct').innerText = Math.floor((video.currentTime/video.duration)*100) + "%";
+            requestAnimationFrame(exportLoop);
+        };
+        exportLoop();
+    }
+</script>
+</body>
+</html>

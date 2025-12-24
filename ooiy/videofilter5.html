@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Motion FX Studio Pro</title>
+    <style>
+        :root { --primary: #00f2ff; --accent: #7000ff; --bg: #050505; --card: #121212; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg); color: white; margin: 0; 
+            display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+        }
+        header {
+            padding: 15px; display: flex; justify-content: space-between; align-items: center;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
+            position: absolute; top: 0; width: 100%; z-index: 10; box-sizing: border-box;
+        }
+        .preview-window { flex-grow: 1; display: flex; align-items: center; justify-content: center; background: #000; overflow: hidden; }
+        canvas { max-width: 100%; max-height: 100%; box-shadow: 0 0 50px rgba(0,0,0,0.5); }
+        .controls-panel {
+            background: var(--card); padding: 20px; border-radius: 30px 30px 0 0;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        .section-label { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 12px; display: block; }
+        .fx-grid { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 15px; scrollbar-width: none; }
+        .fx-grid::-webkit-scrollbar { display: none; }
+        .fx-btn {
+            flex: 0 0 80px; height: 80px; background: #1e1e1e; border-radius: 18px;
+            border: 2px solid transparent; color: #888; display: flex; 
+            flex-direction: column; align-items: center; justify-content: center;
+            font-size: 11px; cursor: pointer; transition: 0.3s;
+        }
+        .fx-btn.active { border-color: var(--primary); color: var(--primary); background: rgba(0,242,255,0.1); transform: scale(1.05); }
+        .fx-btn i { font-size: 20px; margin-bottom: 5px; }
+        .export-btn {
+            width: 100%; padding: 18px; border-radius: 15px; border: none;
+            background: linear-gradient(45deg, var(--primary), var(--accent));
+            color: white; font-weight: bold; font-size: 16px; margin-top: 10px;
+        }
+        #overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.9); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100; text-align: center;}
+    </style>
+</head>
+<body>
+
+    <header>
+        <label style="background:rgba(255,255,255,0.1); padding:8px 15px; border-radius:10px; font-size:14px; cursor:pointer;">
+            📂 Import <input type="file" id="upload" accept="video/*" style="display:none">
+        </label>
+        <div style="color: var(--primary); font-weight: bold; letter-spacing: 2px;">MOTION FX</div>
+    </header>
+
+    <div class="preview-window">
+        <div id="overlay">
+            <h1 id="pct" style="font-size: 48px; margin-bottom: 10px;">0%</h1>
+            <p>Processing Video...</p>
+            <p style="color: #666; font-size: 12px;">Please do not close this window</p>
+        </div>
+        <canvas id="mainCanvas"></canvas>
+    </div>
+
+    <div class="controls-panel">
+        <span class="section-label">Action Filters</span>
+        <div class="fx-grid" id="fxContainer">
+            <button class="fx-btn active" onclick="setFX('normal')"><i>⚪</i>None</button>
+            <button class="fx-btn" onclick="setFX('tremble')"><i>📳</i>Tremble</button>
+            <button class="fx-btn" onclick="setFX('thrill')"><i>⚡</i>Thrill</button>
+            <button class="fx-btn" onclick="setFX('roll')"><i>🔄</i>Roll</button>
+            <button class="fx-btn" onclick="setFX('glitch')"><i>👾</i>Glitch</button>
+            <button class="fx-btn" onclick="setFX('noise')"><i>📻</i>Noise</button>
+            <button class="fx-btn" onclick="setFX('oldtv')"><i>📺</i>Old TV</button>
+            <button class="fx-btn" onclick="setFX('strobe')"><i>💡</i>Strobe</button>
+            <button class="fx-btn" onclick="setFX('flash')"><i>📸</i>Flash</button>
+            <button class="fx-btn" onclick="setFX('flow')"><i>🌊</i>Flow</button>
+            <button class="fx-btn" onclick="setFX('flip')"><i>↕️</i>Flip</button>
+            <button class="fx-btn" onclick="setFX('node')"><i>💠</i>Node</button>
+            <button class="fx-btn" onclick="setFX('blurNormal')"><i>💧</i>Blur->N</button>
+        </div>
+        <button class="export-btn" id="exportBtn" onclick="exportVideo()">EXPORT HD VIDEO</button>
+    </div>
+
+    <video id="vSource" loop muted playsinline style="display:none"></video>
+
+<script>
+    const canvas = document.getElementById('mainCanvas');
+    const ctx = canvas.getContext('2d');
+    const video = document.getElementById('vSource');
+    let currentFX = 'normal';
+    let frameCount = 0;
+    let isExporting = false;
+
+    document.getElementById('upload').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            video.src = URL.createObjectURL(file);
+            video.onloadedmetadata = () => {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                video.play();
+                requestAnimationFrame(renderLoop);
+            };
+        }
+    });
+
+    function setFX(fx) {
+        currentFX = fx;
+        document.querySelectorAll('.fx-btn').forEach(b => {
+            b.classList.toggle('active', b.getAttribute('onclick').includes(`'${fx}'`));
+        });
+    }
+
+    function renderLoop() {
+        if (!isExporting && !video.paused) {
+            frameCount++;
+            processFrame();
+            requestAnimationFrame(renderLoop);
+        }
+    }
+
+    function processFrame() {
+        const w = canvas.width;
+        const h = canvas.height;
+        ctx.save();
+        ctx.clearRect(0, 0, w, h);
+
+        let dx = 0, dy = 0, sx = 1, sy = 1, alpha = 1;
+        ctx.filter = 'none';
+
+        switch(currentFX) {
+            case 'tremble':
+                dx = (Math.random() - 0.5) * 15;
+                dy = (Math.random() - 0.5) * 15;
+                break;
+            case 'thrill':
+                sx = 1 + Math.sin(frameCount * 0.5) * 0.1;
+                sy = 1 + Math.cos(frameCount * 0.5) * 0.1;
+                break;
+            case 'roll':
+                dy = (frameCount * 5) % h;
+                ctx.drawImage(video, 0, dy, w, h);
+                ctx.drawImage(video, 0, dy - h, w, h);
+                ctx.restore(); return;
+            case 'glitch':
+                if (frameCount % 10 > 7) {
+                    dx = (Math.random() - 0.5) * 40;
+                    ctx.filter = `hue-rotate(${Math.random()*360}deg) saturate(3)`;
+                }
+                break;
+            case 'noise':
+                ctx.drawImage(video, 0, 0, w, h);
+                ctx.fillStyle = `rgba(255,255,255,${Math.random() * 0.2})`;
+                for(let i=0; i<100; i++) ctx.fillRect(Math.random()*w, Math.random()*h, 2, 2);
+                ctx.restore(); return;
+            case 'oldtv':
+                ctx.filter = 'grayscale(100%) contrast(1.2) brightness(1.1)';
+                dy = (Math.random() - 0.5) * 2;
+                ctx.drawImage(video, 0, dy, w, h);
+                ctx.fillStyle = "rgba(0,0,0,0.1)";
+                for(let i=0; i<h; i+=4) ctx.fillRect(0, i, w, 1);
+                ctx.restore(); return;
+            case 'strobe':
+                alpha = (frameCount % 4 === 0) ? 0 : 1;
+                break;
+            case 'flash':
+                if (frameCount % 30 < 5) ctx.filter = 'brightness(5) contrast(2)';
+                break;
+            case 'flow':
+                dx = Math.sin(frameCount * 0.1) * 30;
+                break;
+            case 'flip':
+                ctx.translate(w, h);
+                ctx.rotate(Math.PI);
+                break;
+            case 'node':
+                ctx.drawImage(video, 0, 0, w/2, h/2);
+                ctx.scale(-1, 1); ctx.drawImage(video, -w, 0, w/2, h/2);
+                ctx.scale(1, -1); ctx.drawImage(video, -w, -h, w/2, h/2);
+                ctx.scale(-1, 1); ctx.drawImage(video, 0, -h, w/2, h/2);
+                ctx.restore(); return;
+            case 'blurNormal':
+                let b = Math.max(0, 20 - (frameCount % 100) / 2);
+                ctx.filter = `blur(${b}px)`;
+                break;
+        }
+
+        ctx.globalAlpha = alpha;
+        ctx.translate(w/2 + dx, h/2 + dy);
+        ctx.scale(sx, sy);
+        ctx.drawImage(video, -w/2, -h/2, w, h);
+        ctx.restore();
+    }
+
+    async function exportVideo() {
+        if (!video.src || isExporting) return;
+        
+        isExporting = true;
+        const exportBtn = document.getElementById('exportBtn');
+        exportBtn.disabled = true;
+        exportBtn.innerText = "PROCESSING...";
+
+        // Set up video for single pass
+        video.pause();
+        video.loop = false;
+        video.currentTime = 0;
+
+        const chunks = [];
+        const stream = canvas.captureStream(30);
+        
+        // Find supported mime type
+        const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') 
+                         ? 'video/webm;codecs=vp9' 
+                         : 'video/webm';
+        
+        const recorder = new MediaRecorder(stream, { 
+            mimeType: mimeType, 
+            videoBitsPerSecond: 8000000 
+        });
+
+        document.getElementById('overlay').style.display = 'flex';
+        
+        recorder.ondataavailable = e => {
+            if (e.data.size > 0) chunks.push(e.data);
+        };
+
+        recorder.onstop = () => {
+            const blob = new Blob(chunks, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `MotionFX_${Date.now()}.webm`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+            // Short delay before reset to ensure download trigger
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        };
+
+        // Start recording and play video once
+        recorder.start();
+        video.play();
+
+        const trackProgress = () => {
+            if (!isExporting) return;
+            
+            processFrame();
+            frameCount++;
+            
+            let progress = Math.floor((video.currentTime / video.duration) * 100);
+            document.getElementById('pct').innerText = (progress || 0) + "%";
+
+            if (video.ended) {
+                recorder.stop();
+                isExporting = false;
+            } else {
+                requestAnimationFrame(trackProgress);
+            }
+        };
+
+        trackProgress();
+    }
+</script>
+</body>
+</html>
