@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Video — Quick Actions</title>
+  <style>
+    :root{--bg:#071022;--btn:#7c5cff;--btn2:#5cc3ff;--text:#e7f0fb}
+    html,body{height:100%;margin:0;font-family:system-ui,Segoe UI,Roboto,Arial;background:linear-gradient(180deg,#03102a 0%,#071022 100%);color:var(--text)}
+    .center{min-height:100%;display:flex;align-items:center;justify-content:center}
+    .box{width:100%;max-width:420px;padding:28px;text-align:center}
+    h1{margin:0 0 6px;font-size:20px}
+    p.lead{margin:0 0 18px;color:#9fb1c6}
+    .row{display:flex;gap:12px;justify-content:center}
+    a.btn{padding:12px 18px;border-radius:10px;text-decoration:none;color:#071022;font-weight:700;background:linear-gradient(90deg,var(--btn),var(--btn2));display:inline-block}
+    a.btn.ghost{background:transparent;color:var(--text);border:1px solid rgba(255,255,255,0.06);padding:10px 16px}
+    @media (max-width:440px){.row{flex-direction:column}.row a{width:100%}}
+  </style>
+</head>
+<body>
+  <div class="center">
+    <div class="box">
+      <h1>Quick Actions</h1>
+      <p class="lead">Open the player or the filters editor. The selected <code>?filter=</code> (if present) is preserved when opening the player.</p>
+
+      <div class="row">
+        <a id="openPlayer" class="btn" href="video.html">Open Player</a>
+        <a id="openFilters" class="btn ghost" href="videoeditindex.html">Open Filters</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Preserve ?filter when opening video.html
+    (function(){
+      const params = new URLSearchParams(location.search);
+      const f = params.get('filter');
+      const openPlayer = document.getElementById('openPlayer');
+      if (f) openPlayer.href = 'video.html?filter=' + encodeURIComponent(f);
+    })();
+  </script>
+</body>
+</html>
