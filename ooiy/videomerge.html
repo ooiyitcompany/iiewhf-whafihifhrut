@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pro Sequencer - Dynamic Sizing</title>
+    <style>
+        :root { --primary: #007bff; --bg: #09090b; --card: #18181b; --accent: #ff0055; }
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background-color: var(--bg); color: white; margin: 0;
+            display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+        }
+        header { padding: 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #27272a; }
+        
+        .preview-area {
+            flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: #000; overflow: hidden; padding: 20px; position: relative;
+        }
+        .canvas-container {
+            max-height: 85%; max-width: 95%; background: #111;
+            box-shadow: 0 10px 50px rgba(0,0,0,0.8); position: relative;
+            border-radius: 4px; overflow: hidden; transition: aspect-ratio 0.4s ease;
+        }
+        canvas { width: 100%; height: 100%; display: block; }
+
+        .timeline-panel { background: var(--card); padding: 15px; border-radius: 24px 24px 0 0; border-top: 1px solid #333; }
+        .label { font-size: 11px; color: #71717a; text-transform: uppercase; margin-bottom: 10px; display: block; }
+        
+        .clip-list {
+            display: flex; gap: 12px; overflow-x: auto; padding: 10px 5px;
+            min-height: 110px; align-items: flex-start;
+        }
+        .clip-item {
+            flex: 0 0 120px; height: 140px; background: #27272a; border-radius: 12px;
+            position: relative; border: 2px solid transparent; cursor: grab;
+            transition: all 0.2s; overflow: hidden; padding: 8px; box-sizing: border-box;
+        }
+        /* Highlight the video that controls the project size */
+        .clip-item:first-child { border-color: rgba(255,255,255,0.3); background: #2a2a30; }
+        .clip-item.playing { border-color: var(--primary); background: #1e293b; }
+        .clip-item.dragging { opacity: 0.5; transform: scale(0.9); }
+        
+        .clip-info { font-size: 9px; font-weight: bold; margin-bottom: 5px; color: #a1a1aa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .trim-controls { display: flex; flex-direction: column; gap: 4px; }
+        .trim-controls label { font-size: 9px; color: #71717a; display: flex; justify-content: space-between; }
+        .trim-controls input { width: 100%; height: 4px; accent-color: var(--primary); cursor: pointer; margin: 2px 0; }
+
+        .btn-group { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px; }
+        .btn { padding: 14px; border-radius: 12px; border: none; font-weight: bold; cursor: pointer; font-size: 13px; }
+        .btn-add { background: #3f3f46; color: white; }
+        .btn-export { background: var(--accent); color: white; }
+        
+        .remove { position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.6); color: #ff4d4d; border-radius: 50%; width: 20px; height: 20px; text-align: center; line-height: 20px; font-size: 14px; z-index: 10; }
+
+        #overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.9); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100; }
+        .playhead { position: absolute; bottom: 0; left: 0; height: 3px; background: var(--primary); }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div style="font-weight: 900; color: var(--primary);">EDITOR PRO</div>
+        <div id="status" style="font-size: 10px; color: #71717a; background: #27272a; padding: 4px 10px; border-radius: 20px;">0 CLIPS</div>
+    </header>
+
+    <div class="preview-area">
+        <div id="overlay"><h1 id="pct">0%</h1><p>Rendering Master File...</p></div>
+        <div class="canvas-container" id="container">
+            <canvas id="mainCanvas"></canvas>
+            <div class="playhead" id="playhead"></div>
+        </div>
+    </div>
+
+    <div class="timeline-panel">
+        <span class="label">Timeline (1st clip sets project size)</span>
+        <div class="clip-list" id="clipList"></div>
+        <div class="btn-group">
+            <label class="btn btn-add" style="text-align: center;">
+                📂 ADD MEDIA <input type="file" id="multiUpload" accept="video/*" multiple style="display:none">
+            </label>
+            <button class="btn btn-export" onclick="exportSequence()">EXPORT PRODUCTION</button>
+        </div>
+    </div>
+
+    <video id="vSource" style="display:none" muted playsinline></video>
+
+<script>
+    const canvas = document.getElementById('mainCanvas');
+    const ctx = canvas.getContext('2d');
+    const video = document.getElementById('vSource');
+    const clipListContainer = document.getElementById('clipList');
+    const playhead = document.getElementById('playhead');
+    
+    let playlist = []; 
+    let currentClipIndex = 0;
+    let isExporting = false;
+    let draggedItemIndex = null;
+
+    // 1. Upload & Metadata Fetching
+    document.getElementById('multiUpload').addEventListener('change', async (e) => {
+        const files = Array.from(e.target.files);
+        for (const file of files) {
+            const url = URL.createObjectURL(file);
+            const meta = await getVideoMetadata(url);
+            playlist.push({
+                id: Math.random().toString(36).substr(2, 9),
+                url: url,
+                name: file.name,
+                start: 0,
+                end: meta.duration,
+                duration: meta.duration,
+                w: meta.width,
+                h: meta.height
+            });
+        }
+        refreshProject();
+        if (playlist.length > 0 && video.paused) playClip(0);
+    });
+
+    function getVideoMetadata(url) {
+        return new Promise(resolve => {
+            const v = document.createElement('video');
+            v.src = url;
+            v.onloadedmetadata = () => resolve({ duration: v.duration, width: v.videoWidth, height: v.videoHeight });
+        });
+    }
+
+    // 2. The Core Sizing Logic
+    function refreshProject() {
+        if (playlist.length > 0) {
+            // ALWAYS take dimensions from the first clip in the array
+            const master = playlist[0];
+            canvas.width = master.w;
+            canvas.height = master.h;
+            document.getElementById('container').style.aspectRatio = `${master.w}/${master.h}`;
+        }
+        renderTimeline();
+    }
+
+    function renderTimeline() {
+        clipListContainer.innerHTML = '';
+        playlist.forEach((clip, index) => {
+            const div = document.createElement('div');
+            div.className = `clip-item ${index === currentClipIndex ? 'playing' : ''}`;
+            div.draggable = true;
+            div.innerHTML = `
+                <div class="remove" onclick="removeClip(event, ${index})">×</div>
+                <div class="clip-info">${index === 0 ? '⭐ MASTER SIZE' : clip.name}</div>
+                <div class="trim-controls">
+                    <label>In: ${clip.start.toFixed(1)}s</label>
+                    <input type="range" min="0" max="${clip.duration}" step="0.1" value="${clip.start}" oninput="updateTrim(${index},'start',this.value)">
+                    <label>Out: ${clip.end.toFixed(1)}s</label>
+                    <input type="range" min="0" max="${clip.duration}" step="0.1" value="${clip.end}" oninput="updateTrim(${index},'end',this.value)">
+                </div>
+            `;
+            
+            div.ondragstart = () => { draggedItemIndex = index; div.classList.add('dragging'); };
+            div.ondragover = (e) => e.preventDefault();
+            div.ondrop = () => {
+                const item = playlist.splice(draggedItemIndex, 1)[0];
+                playlist.splice(index, 0, item);
+                refreshProject(); // Recalculate size based on new index 0
+                playClip(index);  // Preview the moved clip
+            };
+            div.onclick = (e) => { if(e.target.tagName !== 'INPUT' && e.target.className !== 'remove') playClip(index); };
+            clipListContainer.appendChild(div);
+        });
+        document.getElementById('status').innerText = `${playlist.length} CLIPS`;
+    }
+
+    function updateTrim(index, type, val) {
+        val = parseFloat(val);
+        if (type === 'start') playlist[index].start = Math.min(val, playlist[index].end - 0.1);
+        else playlist[index].end = Math.max(val, playlist[index].start + 0.1);
+        renderTimeline();
+    }
+
+    function removeClip(e, index) {
+        e.stopPropagation();
+        playlist.splice(index, 1);
+        refreshProject();
+    }
+
+    // 3. Playback & Scaling Engine
+    function playClip(index) {
+        if (!playlist[index]) return;
+        currentClipIndex = index;
+        video.src = playlist[index].url;
+        video.onloadedmetadata = () => {
+            video.currentTime = playlist[index].start;
+            video.play();
+            requestAnimationFrame(drawLoop);
+        };
+    }
+
+    function drawLoop() {
+        if (video.paused || isExporting) return;
+        const clip = playlist[currentClipIndex];
+        playhead.style.width = `${((video.currentTime - clip.start) / (clip.end - clip.start)) * 100}%`;
+        
+        if (video.currentTime >= clip.end) {
+            playClip((currentClipIndex + 1) % playlist.length);
+            return;
+        }
+        renderFrame();
+        requestAnimationFrame(drawLoop);
+    }
+
+    function renderFrame() {
+        const vR = video.videoWidth / video.videoHeight;
+        const cR = canvas.width / canvas.height;
+        let dw, dh, dx, dy;
+
+        // Cover/Fill math: Ensures every video fills the Master Aspect Ratio
+        if (vR > cR) {
+            dh = canvas.height; dw = canvas.height * vR;
+            dx = (canvas.width - dw) / 2; dy = 0;
+        } else {
+            dw = canvas.width; dh = canvas.width / vR;
+            dx = 0; dy = (canvas.height - dh) / 2;
+        }
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0,0,canvas.width, canvas.height);
+        ctx.drawImage(video, dx, dy, dw, dh);
+    }
+
+    // 4. Production Export
+    async function exportSequence() {
+        if (playlist.length === 0) return;
+        isExporting = true;
+        video.pause();
+        const chunks = [];
+        const stream = canvas.captureStream(30);
+        const rec = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9', videoBitsPerSecond: 15000000 });
+        
+        document.getElementById('overlay').style.display = 'flex';
+        rec.ondataavailable = e => chunks.push(e.data);
+        rec.onstop = () => {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob(chunks, { type: 'video/webm' }));
+            a.download = `Production_${Date.now()}.webm`;
+            a.click();
+            location.reload();
+        };
+
+        rec.start();
+        for (let i = 0; i < playlist.length; i++) {
+            const clip = playlist[i];
+            video.src = clip.url;
+            await new Promise(res => {
+                video.onloadedmetadata = () => {
+                    video.currentTime = clip.start;
+                    video.play();
+                    const frame = () => {
+                        renderFrame();
+                        document.getElementById('pct').innerText = Math.floor(((i/playlist.length) + ((video.currentTime-clip.start)/(clip.end-clip.start)/playlist.length))*100) + "%";
+                        if (video.currentTime >= clip.end) res();
+                        else requestAnimationFrame(frame);
+                    };
+                    frame();
+                };
+            });
+        }
+        rec.stop();
+    }
+</script>
+</body>
+</html>
