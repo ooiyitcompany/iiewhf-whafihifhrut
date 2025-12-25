@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pro Sequencer - Dynamic Sizing</title>
+    <title>Pro Sequencer - Audio Fixed</title>
     <style>
         :root { --primary: #007bff; --bg: #09090b; --card: #18181b; --accent: #ff0055; }
         body {
@@ -36,7 +36,6 @@
             position: relative; border: 2px solid transparent; cursor: grab;
             transition: all 0.2s; overflow: hidden; padding: 8px; box-sizing: border-box;
         }
-        /* Highlight the video that controls the project size */
         .clip-item:first-child { border-color: rgba(255,255,255,0.3); background: #2a2a30; }
         .clip-item.playing { border-color: var(--primary); background: #1e293b; }
         .clip-item.dragging { opacity: 0.5; transform: scale(0.9); }
@@ -65,7 +64,7 @@
     </header>
 
     <div class="preview-area">
-        <div id="overlay"><h1 id="pct">0%</h1><p>Rendering Master File...</p></div>
+        <div id="overlay"><h1 id="pct">0%</h1><p>Rendering with Audio...</p></div>
         <div class="canvas-container" id="container">
             <canvas id="mainCanvas"></canvas>
             <div class="playhead" id="playhead"></div>
@@ -73,7 +72,7 @@
     </div>
 
     <div class="timeline-panel">
-        <span class="label">Timeline (1st clip sets project size)</span>
+        <span class="label">Timeline (Audio Enabled)</span>
         <div class="clip-list" id="clipList"></div>
         <div class="btn-group">
             <label class="btn btn-add" style="text-align: center;">
@@ -83,7 +82,7 @@
         </div>
     </div>
 
-    <video id="vSource" style="display:none" muted playsinline></video>
+    <video id="vSource" style="display:none" crossorigin="anonymous" playsinline></video>
 
 <script>
     const canvas = document.getElementById('mainCanvas');
@@ -97,7 +96,7 @@
     let isExporting = false;
     let draggedItemIndex = null;
 
-    // 1. Upload & Metadata Fetching
+    // 1. Upload logic
     document.getElementById('multiUpload').addEventListener('change', async (e) => {
         const files = Array.from(e.target.files);
         for (const file of files) {
@@ -126,10 +125,8 @@
         });
     }
 
-    // 2. The Core Sizing Logic
     function refreshProject() {
         if (playlist.length > 0) {
-            // ALWAYS take dimensions from the first clip in the array
             const master = playlist[0];
             canvas.width = master.w;
             canvas.height = master.h;
@@ -160,8 +157,8 @@
             div.ondrop = () => {
                 const item = playlist.splice(draggedItemIndex, 1)[0];
                 playlist.splice(index, 0, item);
-                refreshProject(); // Recalculate size based on new index 0
-                playClip(index);  // Preview the moved clip
+                refreshProject();
+                playClip(index);
             };
             div.onclick = (e) => { if(e.target.tagName !== 'INPUT' && e.target.className !== 'remove') playClip(index); };
             clipListContainer.appendChild(div);
@@ -182,14 +179,18 @@
         refreshProject();
     }
 
-    // 3. Playback & Scaling Engine
+    // 3. Playback Engine (Unmuted)
     function playClip(index) {
         if (!playlist[index]) return;
         currentClipIndex = index;
         video.src = playlist[index].url;
+        video.muted = false; // Enable audio
         video.onloadedmetadata = () => {
             video.currentTime = playlist[index].start;
-            video.play();
+            video.play().catch(e => {
+                console.log("Autoplay blocked - user must click once.");
+                video.muted = true; // Fallback if browser blocks
+            });
             requestAnimationFrame(drawLoop);
         };
     }
@@ -212,7 +213,6 @@
         const cR = canvas.width / canvas.height;
         let dw, dh, dx, dy;
 
-        // Cover/Fill math: Ensures every video fills the Master Aspect Ratio
         if (vR > cR) {
             dh = canvas.height; dw = canvas.height * vR;
             dx = (canvas.width - dw) / 2; dy = 0;
@@ -225,21 +225,39 @@
         ctx.drawImage(video, dx, dy, dw, dh);
     }
 
-    // 4. Production Export
+    // 4. Production Export with Audio Capture
     async function exportSequence() {
         if (playlist.length === 0) return;
         isExporting = true;
         video.pause();
+        
         const chunks = [];
-        const stream = canvas.captureStream(30);
-        const rec = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9', videoBitsPerSecond: 15000000 });
+        
+        // Setup Media Stream Destination for Audio
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioCtx.createMediaElementSource(video);
+        const dest = audioCtx.createMediaStreamDestination();
+        source.connect(dest);
+        source.connect(audioCtx.destination); // Let user hear while exporting
+
+        // Combine Canvas Video and Audio Stream
+        const videoStream = canvas.captureStream(30);
+        const combinedStream = new MediaStream([
+            ...videoStream.getVideoTracks(),
+            ...dest.stream.getAudioTracks()
+        ]);
+
+        const rec = new MediaRecorder(combinedStream, { 
+            mimeType: 'video/webm;codecs=vp9,opus', 
+            videoBitsPerSecond: 15000000 
+        });
         
         document.getElementById('overlay').style.display = 'flex';
         rec.ondataavailable = e => chunks.push(e.data);
         rec.onstop = () => {
             const a = document.createElement('a');
             a.href = URL.createObjectURL(new Blob(chunks, { type: 'video/webm' }));
-            a.download = `Production_${Date.now()}.webm`;
+            a.download = `Production_with_Audio_${Date.now()}.webm`;
             a.click();
             location.reload();
         };
@@ -263,6 +281,7 @@
             });
         }
         rec.stop();
+        audioCtx.close();
     }
 </script>
 </body>
