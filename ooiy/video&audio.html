@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pro Studio - Fix Edition</title>
+    <style>
+        :root { --primary: #007bff; --bg: #09090b; --card: #18181b; --accent: #ff0055; --success: #22c55e; }
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background-color: var(--bg); color: white; margin: 0;
+            display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+        }
+        header { padding: 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #27272a; }
+        .preview-area { flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #000; position: relative; }
+        .canvas-container { max-height: 70%; max-width: 95%; background: #111; box-shadow: 0 10px 50px rgba(0,0,0,0.8); position: relative; border-radius: 4px; overflow: hidden; }
+        canvas { width: 100%; height: 100%; display: block; }
+        .timeline-panel { background: var(--card); padding: 15px; border-radius: 24px 24px 0 0; border-top: 1px solid #333; max-height: 50vh; overflow-y: auto; }
+        .label { font-size: 11px; color: #71717a; text-transform: uppercase; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .clip-list { display: flex; gap: 12px; overflow-x: auto; padding: 10px 5px; min-height: 100px; }
+        .clip-item { flex: 0 0 140px; height: 130px; background: #27272a; border-radius: 12px; position: relative; border: 2px solid transparent; padding: 8px; box-sizing: border-box; }
+        .clip-item.playing { border-color: var(--primary); background: #1e293b; }
+        .audio-item { background: #1e1b4b; border: 1px solid #4338ca; flex: 0 0 240px; height: auto; }
+        .clip-info { font-size: 9px; font-weight: bold; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .trim-controls label { font-size: 8px; color: #71717a; display: flex; justify-content: space-between; margin-top: 4px; }
+        .trim-controls input { width: 100%; height: 4px; accent-color: var(--primary); cursor: pointer; }
+        .mute-btn { background: #3f3f46; border: none; color: white; font-size: 10px; padding: 4px 8px; border-radius: 4px; cursor: pointer; }
+        .mute-btn.active { background: var(--accent); }
+        .btn-group { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-top: 15px; }
+        .btn { padding: 12px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; font-size: 11px; display: flex; align-items: center; justify-content: center; }
+        .btn-vid { background: #3f3f46; color: white; }
+        .btn-aud { background: #312e81; color: white; }
+        .btn-play { background: var(--success); color: white; }
+        .btn-export { background: var(--accent); color: white; }
+        .remove { position: absolute; top: 5px; right: 5px; color: #ff4d4d; cursor: pointer; font-weight: bold; }
+        #overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.9); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100; }
+        .playhead { position: absolute; bottom: 0; left: 0; height: 3px; background: var(--primary); z-index: 5; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div style="font-weight: 900; color: var(--primary);">STUDIO PRO</div>
+        <div id="status">READY</div>
+    </header>
+
+    <div class="preview-area">
+        <div id="overlay"><h1 id="pct">0%</h1><p>Rendering Sequence...</p></div>
+        <div class="canvas-container" id="container">
+            <canvas id="mainCanvas"></canvas>
+            <div class="playhead" id="playhead"></div>
+        </div>
+    </div>
+
+    <div class="timeline-panel">
+        <div class="label"><span>🎞️ Video Sequence</span><button class="mute-btn" id="muteVideo" onclick="toggleMute('video')">MUTE VIDEO</button></div>
+        <div class="clip-list" id="clipList"></div>
+
+        <div class="label" style="margin-top:15px;"><span>🎵 Background Audio</span><button class="mute-btn" id="muteAudio" onclick="toggleMute('audio')">MUTE AUDIO</button></div>
+        <div class="clip-list" id="audioList"></div>
+
+        <div class="btn-group">
+            <label class="btn btn-vid">📹 VIDEO <input type="file" id="vidUpload" accept="video/*" multiple style="display:none"></label>
+            <label class="btn btn-aud">🎶 AUDIO <input type="file" id="audUpload" accept="audio/*" style="display:none"></label>
+            <button class="btn btn-play" id="playBtn" onclick="togglePlayback()">▶️ PLAY</button>
+            <button class="btn btn-export" onclick="exportSequence()">🚀 EXPORT</button>
+        </div>
+    </div>
+
+    <video id="vSource" style="display:none" crossorigin="anonymous" playsinline></video>
+    <audio id="aSource" style="display:none" crossorigin="anonymous"></audio>
+
+<script>
+    const canvas = document.getElementById('mainCanvas');
+    const ctx = canvas.getContext('2d');
+    const video = document.getElementById('vSource');
+    const audio = document.getElementById('aSource');
+    
+    let playlist = [], bgAudio = null, currentClipIndex = 0;
+    let isExporting = false, videoMuted = false, audioMuted = false;
+    let audioCtx, vNode, aNode, dest;
+
+    function initAudio() {
+        if (audioCtx) return;
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        dest = audioCtx.createMediaStreamDestination();
+        vNode = audioCtx.createMediaElementSource(video);
+        aNode = audioCtx.createMediaElementSource(audio);
+        vNode.connect(audioCtx.destination);
+        vNode.connect(dest);
+        aNode.connect(audioCtx.destination);
+        aNode.connect(dest);
+    }
+
+    document.getElementById('vidUpload').addEventListener('change', async (e) => {
+        for (const file of e.target.files) {
+            const url = URL.createObjectURL(file);
+            const el = document.createElement('video'); el.src = url;
+            await new Promise(r => el.onloadedmetadata = r);
+            playlist.push({ id: Math.random(), url, name: file.name, start: 0, end: el.duration, duration: el.duration, w: el.videoWidth, h: el.videoHeight });
+        }
+        refreshUI();
+        if (playlist.length > 0 && video.paused) setupClip(0);
+    });
+
+    document.getElementById('audUpload').addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        const url = URL.createObjectURL(file);
+        const el = document.createElement('audio'); el.src = url;
+        await new Promise(r => el.onloadedmetadata = r);
+        bgAudio = { url, name: file.name, start: 0, end: el.duration, duration: el.duration };
+        refreshUI();
+    });
+
+    function toggleMute(type) {
+        if(type === 'video') { videoMuted = !videoMuted; document.getElementById('muteVideo').classList.toggle('active', videoMuted); video.muted = videoMuted; }
+        else { audioMuted = !audioMuted; document.getElementById('muteAudio').classList.toggle('active', audioMuted); audio.muted = audioMuted; }
+    }
+
+    function refreshUI() {
+        if (playlist.length > 0) {
+            canvas.width = playlist[0].w; canvas.height = playlist[0].h;
+            document.getElementById('container').style.aspectRatio = `${playlist[0].w}/${playlist[0].h}`;
+        }
+        document.getElementById('clipList').innerHTML = playlist.map((c, i) => `
+            <div class="clip-item ${i===currentClipIndex?'playing':''}">
+                <div class="remove" onclick="playlist.splice(${i},1);refreshUI()">×</div>
+                <div class="clip-info">${c.name}</div>
+                <div class="trim-controls">
+                    <label>Start: ${c.start.toFixed(1)}</label><input type="range" min="0" max="${c.duration}" step="0.1" value="${c.start}" oninput="playlist[${i}].start=parseFloat(this.value); refreshUI();">
+                    <label>End: ${c.end.toFixed(1)}</label><input type="range" min="0" max="${c.duration}" step="0.1" value="${c.end}" oninput="playlist[${i}].end=parseFloat(this.value); refreshUI();">
+                </div>
+            </div>`).join('');
+
+        document.getElementById('audioList').innerHTML = bgAudio ? `
+            <div class="clip-item audio-item">
+                <div class="remove" onclick="bgAudio=null;refreshUI()">×</div>
+                <div class="clip-info">🎵 ${bgAudio.name}</div>
+                <div class="trim-controls">
+                    <label>Start: ${bgAudio.start.toFixed(1)}</label><input type="range" min="0" max="${bgAudio.duration}" step="0.1" value="${bgAudio.start}" oninput="bgAudio.start=parseFloat(this.value);refreshUI()">
+                    <label>End: ${bgAudio.end.toFixed(1)}</label><input type="range" min="0" max="${bgAudio.duration}" step="0.1" value="${bgAudio.end}" oninput="bgAudio.end=parseFloat(this.value);refreshUI()">
+                </div>
+            </div>` : 'No audio';
+    }
+
+    function setupClip(index) {
+        initAudio();
+        if (!playlist[index]) return;
+        currentClipIndex = index;
+        video.src = playlist[index].url;
+        video.currentTime = playlist[index].start;
+        video.muted = videoMuted;
+        
+        if(bgAudio) {
+            audio.src = bgAudio.url;
+            audio.currentTime = bgAudio.start;
+            audio.muted = audioMuted;
+        }
+    }
+
+    function togglePlayback() {
+        if (video.paused) {
+            video.play();
+            if (bgAudio) audio.play();
+            document.getElementById('playBtn').innerText = "⏸️ PAUSE";
+            draw();
+        } else {
+            video.pause();
+            if (bgAudio) audio.pause();
+            document.getElementById('playBtn').innerText = "▶️ PLAY";
+        }
+    }
+
+    function draw() {
+        if (video.paused || isExporting) return;
+        const clip = playlist[currentClipIndex];
+        
+        // Loop and logic
+        if (video.currentTime >= clip.end) {
+            let next = (currentClipIndex + 1) % playlist.length;
+            setupClip(next);
+            video.play();
+            if(bgAudio) audio.play();
+            return;
+        }
+        
+        if (bgAudio && (audio.currentTime >= bgAudio.end || audio.currentTime < bgAudio.start)) {
+            audio.currentTime = bgAudio.start;
+        }
+
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        document.getElementById('playhead').style.width = ((video.currentTime-clip.start)/(clip.end-clip.start)*100)+'%';
+        requestAnimationFrame(draw);
+    }
+
+    async function exportSequence() {
+        if (playlist.length === 0) return;
+        initAudio();
+        isExporting = true;
+        video.pause(); audio.pause();
+        document.getElementById('overlay').style.display = 'flex';
+        
+        const chunks = [];
+        const stream = new MediaStream([
+            ...canvas.captureStream(30).getVideoTracks(),
+            ...dest.stream.getAudioTracks()
+        ]);
+
+        const rec = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9,opus' });
+        rec.ondataavailable = e => chunks.push(e.data);
+        rec.onstop = () => {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob(chunks, { type: 'video/webm' }));
+            a.download = 'production.webm';
+            a.click();
+            location.reload();
+        };
+
+        rec.start();
+        
+        if (bgAudio && !audioMuted) {
+            audio.src = bgAudio.url;
+            audio.currentTime = bgAudio.start;
+            audio.play();
+        }
+
+        for (let i = 0; i < playlist.length; i++) {
+            const clip = playlist[i];
+            video.src = clip.url;
+            video.muted = videoMuted;
+            await new Promise(res => {
+                video.onloadedmetadata = () => {
+                    video.currentTime = clip.start;
+                    video.play();
+                    const step = () => {
+                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                        if (bgAudio && audio.currentTime >= bgAudio.end) audio.currentTime = bgAudio.start;
+                        
+                        // --- ACCURATE PERCENTAGE LOGIC ---
+                        let clipProgress = (video.currentTime - clip.start) / (clip.end - clip.start);
+                        let totalProgress = ((i + clipProgress) / playlist.length) * 100;
+                        document.getElementById('pct').innerText = Math.floor(Math.min(totalProgress, 99)) + "%";
+
+                        if (video.currentTime >= clip.end) res();
+                        else requestAnimationFrame(step);
+                    };
+                    step();
+                };
+            });
+        }
+        document.getElementById('pct').innerText = "100%";
+        rec.stop();
+    }
+</script>
+</body>
+</html>
